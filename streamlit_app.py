@@ -36,8 +36,8 @@ if query:
 
     log_to_gsheet(query, answer)
 
-    st.write("🗨️ **あなたの質問**")
-    st.info(query)
+    #st.write("🗨️ **あなたの質問**")
+    #st.info(query)
     st.write("🤖 **聞いてみらい山口の回答**")
     st.success(answer)
 
