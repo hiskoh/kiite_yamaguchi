@@ -10,7 +10,7 @@ def log_to_gsheet(question, answer):
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gsheets_service_account"], scope)
     client_gs = gspread.authorize(creds)
-    sheet = client_gs.open_by_key("GOOGLE_SHEET_ID").worksheet("logs")
+    sheet = client_gs.open_by_key(st.secrets["GOOGLE_SHEET_ID"]).worksheet("logs")
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     sheet.append_row([now, question, answer])
 
@@ -42,13 +42,9 @@ if query:
     st.success(answer)
 
 # --- ページ下部に小さく表示する注意書き＆支援リンク ---
-st.markdown("""
----
-<small>
-📌 本チャットの内容は、改善のため記録される場合があります。<br>
-⚠️ 回答は生成AIによるものであり、正確性を保証するものではありません。<br>
+st.caption("""
+📌 本チャットの内容は、改善のため記録される場合があります。  
+⚠️ 回答は生成AIによるものであり、正確性を保証するものではありません。  
 🙌 本プロジェクトは個人により運営されています。ご支援いただける方はぜひこちらから：  
-<a href="https://codoc.jp/sites/p8cEFlTZQA/entries/MMZnODc1dw" target="_blank">codocで支援する</a>
-</small>
-""", unsafe_allow_html=True)
-
+[💛 codocで支援する](https://codoc.jp/sites/p8cEFlTZQA/entries/MMZnODc1dw)
+""")
