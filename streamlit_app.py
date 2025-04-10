@@ -16,7 +16,7 @@ def log_to_gsheet(question, answer):
     creds = ServiceAccountCredentials.from_json_keyfile_dict(
         st.secrets["gsheets_service_account"], scope)
     client = gspread.authorize(creds)
-    sheet = client.open("kiite_yamaguchi_logs").worksheet("logs")  # スプレッドシート名・シート名を合わせておく
+    sheet = client.open_by_key("1mTB1SwNNst80HjdDAFVB1PyN5HuaoMzKzTpKFhu2Xqw").worksheet("logs")  # スプレッドシートID・シート名を合わせておく
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     sheet.append_row([now, question, answer])
 
