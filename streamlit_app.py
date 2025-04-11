@@ -11,7 +11,7 @@ if "agreed" not in st.session_state:
 # ✅ 同意していない場合は説明と確認ボタンだけ表示
 if not st.session_state.agreed:
     st.set_page_config(page_title="聞いてみらい山口", page_icon="🌞")
-    st.title("🌞 聞いてみらい山口 - ご利用にあたって")
+    st.title("🌞 聞いてみらい山口")
     st.warning("このチャットを利用するには、以下の内容に同意いただく必要があります。")
 
     st.markdown("""
@@ -28,7 +28,7 @@ if not st.session_state.agreed:
         if st.button("✅ 同意して利用を開始する"):
             st.session_state.agreed = True
             st.success("✅ 同意いただき有難うございます。チャット画面を表示します。")
-            st.stop()  # rerunは不要・安全に
+            #st.stop()  # rerunは不要・安全に
 
     with col2:
         if st.button("🚪 同意しない"):
