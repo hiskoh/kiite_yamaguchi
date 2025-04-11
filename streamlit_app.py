@@ -113,7 +113,7 @@ for i, s in enumerate(st.session_state.suggestions_sampled):
 # 🔸 チャット欄
 query = st.text_input("気になることを入力してください", value=st.session_state.query)
 
-if query and (st.session_state.send_now):
+if query and (st.session_state.send_now or st.button("送信")):
      st.session_state.send_now = False
      ask_and_display_answer(query)
 
