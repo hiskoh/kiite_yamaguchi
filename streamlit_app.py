@@ -29,7 +29,7 @@ if not st.session_state.agreed:
     with col1:
         if st.button("✅ 同意して利用を開始する"):
             st.session_state.agreed = True
-            st.experimental_rerun()  # 同意直後にチャット画面へ即時遷移
+            st.stop()  # 同意直後に自然な再描画で画面遷移
 
     with col2:
         if st.button("🚪 同意しない"):
