@@ -63,15 +63,13 @@ if st.session_state.agreed:
         return combined_info.strip()
 
     # ✅ キャラクターと質問サジェスト
-    st.image("https://raw.githubusercontent.com/your-user/your-repo/main/character.gif", width=100)
     st.markdown("**🗣️ ねぇねぇ、こんなこと気になってない？**")
-
+    st.image("character.gif", width=100)
+    
     suggestions = [
-        "自転車レーンは増えるの？",
+        "山口市の課題は？",
         "バス路線の見直しって？",
-        "図書館って移転するの？",
         "市役所の建て替えは？",
-        "歩道の整備って進んでる？"
     ]
     for s in random.sample(suggestions, k=3):
         if st.button(f"💬 {s}", key=f"sugg_{s}"):
