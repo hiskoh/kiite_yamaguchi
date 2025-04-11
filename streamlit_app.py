@@ -85,50 +85,64 @@ if st.session_state.agreed:
         st.session_state.last_answer = answer
         st.session_state.is_generating = False
 
-    # ✅ キャラクターと質問サジェスト
-    st.markdown("**🗣️ ねぇねぇ、こんなこと気になってない？**")
-    st.image("character.gif", width=100)
-
-    suggestions = [
-        "山口市の課題は？",
-        "バス路線の見直しって？",
-        "市役所の建て替えは？",
-    ]
-    cols = st.columns(len(suggestions))
-    for i, s in enumerate(random.sample(suggestions, k=3)):
-        if cols[i].button(f"💬 {s}", key=f"sugg_{s}"):
-            st.session_state.query = s
-            st.session_state.is_generating = True
-            st.rerun()
-
-    # ✅ チャット欄
-    query = st.text_input("気になることを入力してください", value=st.session_state.query)
-
-    if query and (st.session_state.send_now or st.button("送信")):
-        st.session_state.send_now = False
-        ask_and_display_answer(query)
-
-    # ✅ 回答欄・スピナー
-    st.write("🤎 **きいてみらい山口の回答**")
-    if st.session_state.is_generating:
-        ask_and_display_answer(st.session_state.query)
-        st.info("回答を生成中です...")
-    elif st.session_state.last_answer:
-        st.success(st.session_state.last_answer)
-
-        # ✅ 再サジェスト（横並び）
-        st.divider()
-        st.markdown("**👀 他にも気になること、こんなのはどう？**")
-        again_cols = st.columns(len(suggestions))
-        for i, s in enumerate(random.sample(suggestions, k=3)):
-            if again_cols[i].button(f"🔄 {s}", key=f"again_{s}"):
-                st.session_state.query = s
-                st.session_state.is_generating = True
-                st.rerun()
-
-    # ✅ フッター
-    st.caption("""
-⚠️ 回答は生成AIによるものであり、正確性を保証するものではありません。  
-🙌 本プロジェクトは個人により運営されています。ご支援いただける方はぜひこちらから：  
-[💛 codocで支援する](https://codoc.jp/sites/p8cEFlTZQA/entries/MMZnODc1dw)
-""")
+    # 🔸 キャラクター & サジェスト
+     st.image("character.gif", width=100)  # GIFキャラ（ファイル名を調整）
+     st.markdown("**🗣️ ねぇねぇ、こんなこと気になってない？**")
+     suggestions = [
+         "山口市の課題は？",
+         "市役所の建て替えは？",
+         "公共交通は不便にならない？"
+     ]
+     random_suggestions = random.sample(suggestions, k=3)
+     for s in random_suggestions:
+         if st.button(f"💬 {s}"):
+             st.session_state.query = s
+             st.session_state.send_now = True
+             raise st.script_runner.RerunException(st.script_request_queue.RerunData())  # 安全な rerun
+ 
+     # 🔸 チャットUI
+     query = st.text_input("気になることを入力してください", value=st.session_state.query)
+ 
+     if query and (st.session_state.send_now or st.button("送信")):
+         st.session_state.send_now = False
+         with st.spinner("回答を生成中..."):
+             yamaguchi_context = load_yamaguchi_data()
+             system_prompt = f"""
+ あなたは山口市の行政文書や政策に詳しい親切なアシスタントです。
+ 以下の情報は山口市が公開している計画・政策の一部です。
+ 必要に応じて内容を参考にして、市民にわかりやすく、丁寧に答えてください。
+ 以下に載っていない情報や政治的な主張、山口市の行政とは関係ない質問に関しては一貫して「申し訳ありません、その質問にはお答えできません」と回答してください。
+ 
+ {yamaguchi_context}
+ """
+             try:
+                 response = client.chat.completions.create(
+                     model="gpt-3.5-turbo",
+                     messages=[
+                         {"role": "system", "content": system_prompt},
+                         {"role": "user", "content": query}
+                     ]
+                 )
+                 answer = response.choices[0].message.content.strip()
+             except Exception as e:
+                 answer = f"⚠️ エラーが発生しました：{e}"
+ 
+         log_to_gsheet(query, answer)
+         st.write("🤎 **きいてみらい山口の回答**")
+         st.success(answer)
+ 
+         # 🔁 回答後の再サジェスト
+         st.divider()
+         st.markdown("**👀 他にも気になること、こんなのはどう？**")
+         again_suggestions = random.sample(suggestions, k=3)
+         for s in again_suggestions:
+             if st.button(f"🔄 {s}", key=f"again_{s}"):
+                 st.session_state.query = s
+                 st.session_state.send_now = True
+                 st.experimental_rerun()
+ 
+     st.caption("""
+ ⚠️ 回答は生成AIによるものであり、正確性を保証するものではありません。  
+ 🙌 本プロジェクトは個人により運営されています。ご支援いただける方はぜひこちらから：  
+ [💛 codocで支援する](https://codoc.jp/sites/p8cEFlTZQA/entries/MMZnODc1dw)
+ """)
