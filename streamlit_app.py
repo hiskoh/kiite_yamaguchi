@@ -17,7 +17,7 @@ for key in ["agreed", "query", "send_now", "last_answer", "is_generating"]:
 def load_prompt():
     with open("prompts/system_prompt.txt", "r", encoding="utf-8") as f:
         return f.read()
-        
+
 # ✅ 同意画面
 if not st.session_state.agreed:
     st.title("🌞 きいてみらい山口")
@@ -32,7 +32,12 @@ if not st.session_state.agreed:
     - ✅ チャット内容は記録されます。内容の記録に同意された方のみ、チャットをご利用ください。
     """)
 
-    if st.button("✅ 上記の内容に同意してチャットをはじめる"):
+    st.markdown("""
+    <div style='text-align:center;'>
+        <button style='padding: 0.5em 1em; font-size: 1.1em;' onclick='window.location.reload()'>✅ 上記の内容に同意してチャットをはじめる</button>
+    </div>
+    """, unsafe_allow_html=True)
+    if st.button("✅ 同意してチャットをはじめる"):
         st.session_state.agreed = True
         st.rerun()
     st.stop()
@@ -84,12 +89,12 @@ def ask_and_display_answer(user_query):
     st.session_state.last_answer = answer
     st.session_state.is_generating = False
 
-
+# 🔸 UI構成
 st.title("🌞 聞いてみらい山口")
 
-# 🔸 キャラクター & サジェスト
+# --- キャラクターとサジェスト ---
 st.image("character.gif", width=100)
-st.markdown("**🗣️ ねぇねぇ、こんなこと気になってない？**")
+st.markdown("<div style='padding: 0.5em; background-color: #f9f9f9; border-radius: 10px;'>🗣️ <b>ねぇねぇ、こんなこと気になってない？</b></div>", unsafe_allow_html=True)
 
 suggestions_master = [
     "山口市の課題は？",
@@ -97,7 +102,6 @@ suggestions_master = [
     "公共交通は不便にならない？"
 ]
 
-# 一度だけランダム選定し、セッションに保存
 if "suggestions_sampled" not in st.session_state:
     st.session_state.suggestions_sampled = random.sample(suggestions_master, k=3)
 
@@ -108,25 +112,24 @@ for i, s in enumerate(st.session_state.suggestions_sampled):
         st.session_state.send_now = True
         st.rerun()
 
-
-
-# 🔸 チャット欄
-query = st.text_input("気になることを入力してください", value=st.session_state.query)
+# --- チャット欄 ---
+st.markdown("### 💬 あなたの質問")
+query = st.text_input("", value=st.session_state.query)
 
 if query and (st.session_state.send_now or st.button("送信")):
-     st.session_state.send_now = False
-     ask_and_display_answer(query)
+    st.session_state.send_now = False
+    ask_and_display_answer(query)
 
-# 🔸 回答欄
-st.write("🤎 **きいてみらい山口の回答**")
+# --- 回答欄 ---
+st.markdown("### 🤖 回答はこちら")
 if st.session_state.is_generating:
     st.info("⏳ 回答中... 少々お待ちください")
 elif st.session_state.last_answer:
     st.success(st.session_state.last_answer)
 
-# 🔁 再サジェスト
+# --- 再サジェスト ---
 st.divider()
-st.markdown("**👀 他にも気になること、こんなのはどう？**")
+st.markdown("<div style='margin-top: 1em;'><b>👀 他にも気になること、こんなのはどう？</b></div>", unsafe_allow_html=True)
 again_cols = st.columns(3)
 for i, s in enumerate(random.sample(suggestions_master, k=3)):
     if again_cols[i].button(f"🔄 {s}", key=f"again_{s}"):
@@ -134,7 +137,7 @@ for i, s in enumerate(random.sample(suggestions_master, k=3)):
         st.session_state.send_now = True
         st.rerun()
 
-# 🔻 フッター
+# --- フッター ---
 st.caption("""
 ⚠️ 回答は生成AIによるものであり、正確性を保証するものではありません。  
 🙌 本プロジェクトは個人により運営されています。ご支援いただける方はぜひこちらから：  
