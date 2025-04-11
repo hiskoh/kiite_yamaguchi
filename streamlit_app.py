@@ -60,8 +60,9 @@ def load_yamaguchi_data():
 def ask_and_display_answer(user_query):
     st.session_state.query = user_query
     st.session_state.is_generating = True
-    yamaguchi_context = load_yamaguchi_data()
-    system_prompt = f"""
+    with st.spinner("🤖 回答を作成中です..."):
+        yamaguchi_context = load_yamaguchi_data()
+        system_prompt = f"""
 あなたは山口市の行政文書や政策に詳しい親切なアシスタントです。
 以下の情報は山口市が公開している計画・政策の一部です。
 必要に応じて内容を参考にして、市民にわかりやすく、丁寧に答えてください。
@@ -69,17 +70,17 @@ def ask_and_display_answer(user_query):
 
 {yamaguchi_context}
 """
-    try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_query}
-            ]
-        )
-        answer = response.choices[0].message.content.strip()
-    except Exception as e:
-        answer = f"⚠️ エラーが発生しました：{e}"
+        try:
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_query}
+                ]
+            )
+            answer = response.choices[0].message.content.strip()
+        except Exception as e:
+            answer = f"⚠️ エラーが発生しました：{e}"
 
     log_to_gsheet(user_query, answer)
     st.session_state.last_answer = answer
@@ -110,7 +111,7 @@ if query and (st.session_state.send_now or st.button("送信")):
 # 🔸 回答欄
 st.write("🤎 **きいてみらい山口の回答**")
 if st.session_state.is_generating:
-    st.info("回答を生成中です...")
+    st.info("🤖 回答を生成中です... 少々お待ちください")
 elif st.session_state.last_answer:
     st.success(st.session_state.last_answer)
 
