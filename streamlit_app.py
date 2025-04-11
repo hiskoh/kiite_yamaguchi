@@ -15,7 +15,7 @@ if "trigger_rerun" not in st.session_state:
 
 # ✅ 同意していない場合は利用規約画面を表示
 if not st.session_state.agreed:
-    st.title("🌞 聞いてみらい山口")
+    st.title("🌞 聞いてみらい山口 - ご利用にあたって")
     st.warning("このチャットを利用するには、以下の内容に同意いただく必要があります。")
 
     st.markdown("""
@@ -32,9 +32,6 @@ if not st.session_state.agreed:
         if st.button("✅ 同意して利用を開始する"):
             st.session_state.agreed = True
             st.session_state.trigger_rerun = True
-            st.stop()  # ← rerun の代わりに stop で1回停止 → 次描画で切り替わる
-
-            
     with col2:
         if st.button("🚪 同意しない"):
             st.error("ご利用ありがとうございました。")
@@ -104,9 +101,6 @@ if st.session_state.agreed:
         st.success(answer)
 
     st.caption("""
-📌 本チャットの内容は、みなさんの関心や疑問をもとに、よくある質問を整理したり、
-行政との新しいコミュニケーションの形をつくっていくことを目的に記録させていただいています。
-個人情報は入力しないようお願いいたします。また、内容の記録に同意された方のみ、チャット入力・送信をお願いします。  
 ⚠️ 回答は生成AIによるものであり、正確性を保証するものではありません。  
 🙌 本プロジェクトは個人により運営されています。ご支援いただける方はぜひこちらから：  
 [💛 codocで支援する](https://codoc.jp/sites/p8cEFlTZQA/entries/MMZnODc1dw)
