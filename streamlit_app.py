@@ -31,26 +31,10 @@ if not st.session_state.agreed:
     - **個人情報（氏名・住所・連絡先など）の入力は行わないでください。**  
     - チャット内容は記録されます。内容の記録に同意された方のみ、チャットをご利用ください。
     """)
-
-    # CSSでボタンを中央寄せ＆背景グレーにする
-    st.markdown("""
-        <style>
-        .center-button {
-            display: flex;
-            justify-content: center;
-            margin-top: 2em;
-        }
-        .center-button button {
-            background-color: #e0e0e0 !important;
-            color: black !important;
-            border: none !important;
-        }
-        </style>
-    """, unsafe_allow_html=True)
     
     if st.button("✅ 同意してチャットをはじめる"):
         st.session_state.agreed = True
-        st.rerun()
+        st.rerun() 
     st.stop()
 
 # ✅ Chatモード（同意済）
