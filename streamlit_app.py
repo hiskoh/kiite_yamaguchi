@@ -4,19 +4,18 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 
-# ✅ セッションで同意確認
+# ✅ ページ設定（1回のみ）
+st.set_page_config(page_title="聞いてみらい山口", page_icon="🌞")
+
+# ✅ セッション管理（同意状況とリロードトリガー）
 if "agreed" not in st.session_state:
     st.session_state.agreed = False
+if "trigger_rerun" not in st.session_state:
+    st.session_state.trigger_rerun = False
 
-# ✅ 同意直後に一度だけ rerun してチャット画面へ
-if st.session_state.get("agreed_just_now"):
-    st.session_state.agreed_just_now = False  # フラグをオフに
-    st.experimental_rerun()
-
-# ✅ 同意していない状態
+# ✅ 同意していない場合は利用規約画面を表示
 if not st.session_state.agreed:
-    st.set_page_config(page_title="聞いてみらい山口", page_icon="🌞")
-    st.title("🌞 聞いてみらい山口 - ご利用にあたって")
+    st.title("\ud83c\udf1e 聞いてみらい山口 - ご利用にあたって")
     st.warning("このチャットを利用するには、以下の内容に同意いただく必要があります。")
 
     st.markdown("""
@@ -30,16 +29,21 @@ if not st.session_state.agreed:
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("✅ 同意して利用を開始する"):
+        if st.button("\u2705 同意して利用を開始する"):
             st.session_state.agreed = True
-            st.session_state.agreed_just_now = True  # rerunフラグ
+            st.session_state.trigger_rerun = True
     with col2:
         if st.button("🚪 同意しない"):
             st.error("ご利用ありがとうございました。")
             st.stop()
 
-else:
-    # ✅ 同意済み → 通常のチャット画面へ
+# ✅ 外側で rerun（セッション更新が確実に反映された状態で）
+if st.session_state.trigger_rerun:
+    st.session_state.trigger_rerun = False
+    st.experimental_rerun()
+
+# ✅ 同意済みの場合は通常チャット画面を表示
+if st.session_state.agreed:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
     def get_gspread_client():
@@ -62,8 +66,7 @@ else:
             combined_info += f"\n\n【{row['カテゴリ']}】{row['タイトル']}：{row['本文']}"
         return combined_info.strip()
 
-    st.set_page_config(page_title="聞いてみらい山口", page_icon="🌞")
-    st.title("🌞聞いてみらい山口")
+    st.title("\ud83c\udf1e聞いてみらい山口")
     st.write("山口市の“これから”を、一緒に考えるチャットです。気になることを、気軽に聞いてみてください。")
 
     query = st.text_input("気になることを入力してください")
@@ -91,16 +94,17 @@ else:
                 )
                 answer = response.choices[0].message.content.strip()
             except Exception as e:
-                answer = f"⚠️ エラーが発生しました：{e}"
+                answer = f"\u26a0\ufe0f エラーが発生しました：{e}"
 
         log_to_gsheet(query, answer)
-        st.write("🤖 **聞いてみらい山口の回答**")
+        st.write("🤎 **聞いてみらい山口の回答**")
         st.success(answer)
 
-    # 🔻 注意書き・支援リンク
     st.caption("""
-    📌 本チャットの内容は、みなさんの関心や疑問をもとに、よくある質問を整理したり、行政との新しいコミュニケーションの形をつくっていくことを目的に記録させていただいています。個人情報は入力しないようお願いいたします。また、内容の記録に同意された方のみ、チャット入力・送信をお願いします。  
-    ⚠️ 回答は生成AIによるものであり、正確性を保証するものではありません。  
-    🙌 本プロジェクトは個人により運営されています。ご支援いただける方はぜひこちらから：  
-    [💛 codocで支援する](https://codoc.jp/sites/p8cEFlTZQA/entries/MMZnODc1dw)
-    """)
+📌 本チャットの内容は、みなさんの関心や疑問をもとに、よくある質問を整理したり、
+行政との新しいコミュニケーションの形をつくっていくことを目的に記録させていただいています。
+個人情報は入力しないようお願いいたします。また、内容の記録に同意された方のみ、チャット入力・送信をお願いします。  
+⚠\ufe0f 回答は生成AIによるものであり、正確性を保証するものではありません。  
+🙌 本プロジェクトは個人により運営されています。ご支援いただける方はぜひこちらから：  
+[💛 codocで支援する](https://codoc.jp/sites/p8cEFlTZQA/entries/MMZnODc1dw)
+""")
