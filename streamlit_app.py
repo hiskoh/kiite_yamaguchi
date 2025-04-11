@@ -89,7 +89,6 @@ st.title("🌞 聞いてみらい山口")
 
 # --- キャラクターとサジェスト ---
 #st.image("character.gif", width=100)
-st.markdown("<div style='padding: 0.5em; background-color: #f9f9f9; border-radius: 10px;'>🗣️ <b>ねぇねぇ、こんなこと気になってない？</b></div>", unsafe_allow_html=True)
 
 # --- チャット欄 ---
 st.markdown("### 💬 あなたの質問")
