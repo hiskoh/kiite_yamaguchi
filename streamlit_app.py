@@ -28,15 +28,12 @@ if not st.session_state.agreed:
     - ✅ チャット内容は記録されます。内容の記録に同意された方のみ、チャットをご利用ください。
     """)
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("✅ 同意して利用を開始する"):
-            st.session_state.agreed = True
-            st.stop()
-    with col2:
-        if st.button("🚪 同意しない"):
-            st.error("ご利用ありがとうございました。")
-            st.stop()
+    agree_check = st.checkbox("上記の内容に同意します")
+    if agree_check:
+        st.session_state.agreed = True
+        st.rerun()
+    else:
+        st.stop()
 
 # ✅ Chatモード（同意済）
 if st.session_state.agreed:
@@ -62,26 +59,7 @@ if st.session_state.agreed:
             combined_info += f"\n\n【{row['カテゴリ']}】{row['タイトル']}：{row['本文']}"
         return combined_info.strip()
 
-    # ✅ キャラクターと質問サジェスト
-    st.markdown("**🗣️ ねぇねぇ、こんなこと気になってない？**")
-    st.image("character.gif", width=100)
-
-    suggestions = [
-        "山口市の課題は？",
-        "バス路線の見直しって？",
-        "市役所の建て替えは？",
-    ]
-    for s in random.sample(suggestions, k=3):
-        if st.button(f"💬 {s}", key=f"sugg_{s}"):
-            st.session_state.query = s
-            st.session_state.send_now = True
-            st.rerun()
-
-    # ✅ チャット欄
-    query = st.text_input("気になることを入力してください", value=st.session_state.query)
-
-    if query and (st.session_state.send_now or st.button("送信")):
-        st.session_state.send_now = False
+    def ask_and_display_answer(user_query):
         with st.spinner("回答を生成中..."):
             yamaguchi_context = load_yamaguchi_data()
             system_prompt = f"""
@@ -97,16 +75,38 @@ if st.session_state.agreed:
                     model="gpt-3.5-turbo",
                     messages=[
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": query}
+                        {"role": "user", "content": user_query}
                     ]
                 )
                 answer = response.choices[0].message.content.strip()
             except Exception as e:
                 answer = f"⚠️ エラーが発生しました：{e}"
 
-        log_to_gsheet(query, answer)
+        log_to_gsheet(user_query, answer)
         st.write("🤎 **きいてみらい山口の回答**")
         st.success(answer)
+
+    # ✅ キャラクターと質問サジェスト
+    st.markdown("**🗣️ ねぇねぇ、こんなこと気になってない？**")
+    st.image("character.gif", width=100)
+
+    suggestions = [
+        "山口市の課題は？",
+        "バス路線の見直しって？",
+        "市役所の建て替えは？",
+    ]
+    for s in random.sample(suggestions, k=3):
+        if st.button(f"💬 {s}", key=f"sugg_{s}"):
+            st.session_state.query = s
+            ask_and_display_answer(s)
+            st.stop()
+
+    # ✅ チャット欄
+    query = st.text_input("気になることを入力してください", value=st.session_state.query)
+
+    if query and (st.session_state.send_now or st.button("送信")):
+        st.session_state.send_now = False
+        ask_and_display_answer(query)
 
         # ✅ 再サジェスト
         st.divider()
@@ -114,8 +114,8 @@ if st.session_state.agreed:
         for s in random.sample(suggestions, k=3):
             if st.button(f"🔄 {s}", key=f"again_{s}"):
                 st.session_state.query = s
-                st.session_state.send_now = True
-                st.rerun()
+                ask_and_display_answer(s)
+                st.stop()
 
     # ✅ フッター
     st.caption("""
