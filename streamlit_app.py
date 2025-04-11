@@ -60,7 +60,7 @@ def load_yamaguchi_data():
 def ask_and_display_answer(user_query):
     st.session_state.query = user_query
     st.session_state.is_generating = True
-    with st.spinner("🤖 回答を作成中です..."):
+    with st.spinner("⏳ 回答中... 少々お待ちください"):
         yamaguchi_context = load_yamaguchi_data()
         system_prompt = f"""
 あなたは山口市の行政文書や政策に詳しい親切なアシスタントです。
@@ -111,7 +111,7 @@ if query and (st.session_state.send_now or st.button("送信")):
 # 🔸 回答欄
 st.write("🤎 **きいてみらい山口の回答**")
 if st.session_state.is_generating:
-    st.info("⏳ 調べています... 少々お待ちください")
+    st.info("⏳ 回答中... 少々お待ちください")
 elif st.session_state.last_answer:
     st.success(st.session_state.last_answer)
 
