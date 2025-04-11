@@ -4,19 +4,17 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import random
+import time
 
-# ✅ ページ設定（1回のみ）
+# ✅ ページ設定
 st.set_page_config(page_title="きいてみらい山口", page_icon="🌞")
 
-# ✅ セッション管理（同意状況 / 質問サジェスト）
-if "agreed" not in st.session_state:
-    st.session_state.agreed = False
-if "query" not in st.session_state:
-    st.session_state.query = ""
-if "send_now" not in st.session_state:
-    st.session_state.send_now = False
+# ✅ セッションステートの初期化
+for key in ["agreed", "query", "send_now", "pending"]:
+    if key not in st.session_state:
+        st.session_state[key] = False if key != "query" else ""
 
-# ✅ 同意していない場合は利用規約画面を表示
+# ✅ 同意画面
 if not st.session_state.agreed:
     st.title("🌞 きいてみらい山口")
     st.warning("このチャットを利用するには、以下の内容に同意いただく必要があります。")
@@ -35,20 +33,12 @@ if not st.session_state.agreed:
         if st.button("✅ 同意して利用を開始する"):
             st.session_state.agreed = True
             st.stop()
-
     with col2:
         if st.button("🚪 同意しない"):
             st.error("ご利用ありがとうございました。")
             st.stop()
-            
-# ✅ 遅延トリガーがあればここで一度だけ再描画（擬似スリープ）
-if st.session_state.delay_trigger:
-    st.session_state.delay_trigger = False
-    time.sleep(0.5)
-    st.session_state.send_now = True
-    st.rerun()
-    
-# ✅ 同意済みの場合は通常チャット画面を表示
+
+# ✅ Chatモード（同意済）
 if st.session_state.agreed:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
@@ -72,22 +62,32 @@ if st.session_state.agreed:
             combined_info += f"\n\n【{row['カテゴリ']}】{row['タイトル']}：{row['本文']}"
         return combined_info.strip()
 
-    # 🔸 キャラクター & サジェスト
-    st.image("character.gif", width=100)  # GIFキャラ（ファイル名を調整）
+    # ✅ キャラクターと質問サジェスト
+    st.image("https://raw.githubusercontent.com/your-user/your-repo/main/character.gif", width=100)
     st.markdown("**🗣️ ねぇねぇ、こんなこと気になってない？**")
-    suggestions = [
-        "山口市の課題は？",
-        "市役所の建て替えは？",
-        "公共交通は不便にならない？"
-    ]
-    random_suggestions = random.sample(suggestions, k=3)
-    for s in random_suggestions:
-        if st.button(f"💬 {s}"):
-            st.session_state.query = s
-            st.session_state.send_now = True
-            raise st.script_runner.RerunException(st.script_request_queue.RerunData())  # 安全な rerun
 
-    # 🔸 チャットUI
+    suggestions = [
+        "自転車レーンは増えるの？",
+        "バス路線の見直しって？",
+        "図書館って移転するの？",
+        "市役所の建て替えは？",
+        "歩道の整備って進んでる？"
+    ]
+    for s in random.sample(suggestions, k=3):
+        if st.button(f"💬 {s}", key=f"sugg_{s}"):
+            st.session_state.query = s
+            st.session_state.pending = True
+            st.stop()
+
+    # ✅ 0.5秒後にチャット送信する処理（遅延演出）
+    if st.session_state.pending:
+        with st.spinner("考え中..."):
+            time.sleep(0.5)
+        st.session_state.pending = False
+        st.session_state.send_now = True
+        st.rerun()
+
+    # ✅ チャット欄
     query = st.text_input("気になることを入力してください", value=st.session_state.query)
 
     if query and (st.session_state.send_now or st.button("送信")):
@@ -118,16 +118,16 @@ if st.session_state.agreed:
         st.write("🤎 **きいてみらい山口の回答**")
         st.success(answer)
 
-        # 🔁 回答後の再サジェスト
+        # ✅ 再サジェスト
         st.divider()
         st.markdown("**👀 他にも気になること、こんなのはどう？**")
-        again_suggestions = random.sample(suggestions, k=3)
-        for s in again_suggestions:
+        for s in random.sample(suggestions, k=3):
             if st.button(f"🔄 {s}", key=f"again_{s}"):
                 st.session_state.query = s
-                st.session_state.send_now = True
-                st.experimental_rerun()
+                st.session_state.pending = True
+                st.stop()
 
+    # ✅ フッター
     st.caption("""
 ⚠️ 回答は生成AIによるものであり、正確性を保証するものではありません。  
 🙌 本プロジェクトは個人により運営されています。ご支援いただける方はぜひこちらから：  
