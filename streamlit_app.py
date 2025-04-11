@@ -85,8 +85,7 @@ def ask_and_display_answer(user_query):
     st.session_state.is_generating = False
 
 
-# ✅ ページ設定
-st.set_page_config(page_title="きいてみらい山口", page_icon="🌞")
+st.title("🌞 聞いてみらい山口")
 
 # 🔸 キャラクター & サジェスト
 st.image("character.gif", width=100)
