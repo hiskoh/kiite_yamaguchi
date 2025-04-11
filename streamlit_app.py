@@ -48,14 +48,9 @@ if not st.session_state.agreed:
         </style>
     """, unsafe_allow_html=True)
     
-    # HTMLでラップしてボタンを中央に配置
-    with st.container():
-        st.markdown('<div class="center-button">', unsafe_allow_html=True)
-        if st.button("✅ 同意してチャットをはじめる"):
-            st.session_state.agreed = True
-            st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-    
+    if st.button("✅ 同意してチャットをはじめる"):
+        st.session_state.agreed = True
+        st.rerun()
     st.stop()
 
 # ✅ Chatモード（同意済）
@@ -143,15 +138,6 @@ if st.session_state.is_generating:
 elif st.session_state.last_answer:
     st.success(st.session_state.last_answer)
 
-# --- 再サジェスト ---
-st.divider()
-st.markdown("<div style='margin-top: 1em;'><b>👀 他にも気になること、こんなのはどう？</b></div>", unsafe_allow_html=True)
-again_cols = st.columns(3)
-for i, s in enumerate(random.sample(suggestions_master, k=3)):
-    if again_cols[i].button(f"🔄 {s}", key=f"again_{s}"):
-        st.session_state.query = s
-        st.session_state.send_now = True
-        st.rerun()
 
 # --- フッター ---
 st.caption("""
