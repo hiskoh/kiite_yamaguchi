@@ -69,18 +69,16 @@ if st.session_state.agreed:
     st.image("character.gif", width=100)  # GIFキャラ（ファイル名を調整）
     st.markdown("**🗣️ ねぇねぇ、こんなこと気になってない？**")
     suggestions = [
-        "自転車レーンは増えるの？",
-        "バス路線の見直しって？",
-        "図書館って移転するの？",
+        "山口市の課題は？",
         "市役所の建て替えは？",
-        "歩道の整備って進んでる？"
+        "公共交通は不便にならない？"
     ]
     random_suggestions = random.sample(suggestions, k=3)
     for s in random_suggestions:
         if st.button(f"💬 {s}"):
             st.session_state.query = s
             st.session_state.send_now = True
-            st.experimental_rerun()
+            raise st.script_runner.RerunException(st.script_request_queue.RerunData())  # 安全な rerun
 
     # 🔸 チャットUI
     query = st.text_input("気になることを入力してください", value=st.session_state.query)
