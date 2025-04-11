@@ -91,7 +91,7 @@ st.title("🌞 聞いてみらい山口")
 #st.image("character.gif", width=100)
 
 # --- チャット欄 ---
-st.markdown("### 💬 あなたの質問")
+st.markdown("#### 💬 質問してみよう")
 query = st.text_input("", value=st.session_state.query)
 
 # --- サジェスト ---
@@ -111,13 +111,14 @@ for i, s in enumerate(st.session_state.suggestions_sampled):
         st.session_state.send_now = True
         st.rerun()
 
+
 # --- 送信ボタン --- 
 if query and (st.session_state.send_now or st.button("送信")):
     st.session_state.send_now = False
     ask_and_display_answer(query)
 
 # --- 回答欄 ---
-st.markdown("### 🤖 回答はこちら")
+st.markdown("#### 💡回答はこちら")
 if st.session_state.is_generating:
     st.info("⏳ 回答中... 少々お待ちください")
 elif st.session_state.last_answer:
