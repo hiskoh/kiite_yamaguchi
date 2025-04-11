@@ -10,7 +10,7 @@ import time
 st.set_page_config(page_title="きいてみらい山口", page_icon="🌞")
 
 # ✅ セッションステートの初期化
-for key in ["agreed", "query", "send_now", "pending"]:
+for key in ["agreed", "query", "send_now"]:
     if key not in st.session_state:
         st.session_state[key] = False if key != "query" else ""
 
@@ -65,7 +65,7 @@ if st.session_state.agreed:
     # ✅ キャラクターと質問サジェスト
     st.markdown("**🗣️ ねぇねぇ、こんなこと気になってない？**")
     st.image("character.gif", width=100)
-    
+
     suggestions = [
         "山口市の課題は？",
         "バス路線の見直しって？",
@@ -74,16 +74,8 @@ if st.session_state.agreed:
     for s in random.sample(suggestions, k=3):
         if st.button(f"💬 {s}", key=f"sugg_{s}"):
             st.session_state.query = s
-            st.session_state.pending = True
-            st.stop()
-
-    # ✅ 0.5秒後にチャット送信する処理（遅延演出）
-    if st.session_state.pending:
-        with st.spinner("考え中..."):
-            time.sleep(0.5)
-        st.session_state.pending = False
-        st.session_state.send_now = True
-        st.rerun()
+            st.session_state.send_now = True
+            st.rerun()
 
     # ✅ チャット欄
     query = st.text_input("気になることを入力してください", value=st.session_state.query)
@@ -122,8 +114,8 @@ if st.session_state.agreed:
         for s in random.sample(suggestions, k=3):
             if st.button(f"🔄 {s}", key=f"again_{s}"):
                 st.session_state.query = s
-                st.session_state.pending = True
-                st.stop()
+                st.session_state.send_now = True
+                st.rerun()
 
     # ✅ フッター
     st.caption("""
