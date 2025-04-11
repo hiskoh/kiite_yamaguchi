@@ -10,7 +10,7 @@ import time
 st.set_page_config(page_title="きいてみらい山口", page_icon="🌞")
 
 # ✅ セッションステートの初期化
-for key in ["agreed", "query", "send_now", "last_answer"]:
+for key in ["agreed", "query", "send_now", "last_answer", "is_generating"]:
     if key not in st.session_state:
         st.session_state[key] = False if key not in ["query", "last_answer"] else ""
 
@@ -58,9 +58,9 @@ if st.session_state.agreed:
         return combined_info.strip()
 
     def ask_and_display_answer(user_query):
-        with st.spinner("回答を生成中..."):
-            yamaguchi_context = load_yamaguchi_data()
-            system_prompt = f"""
+        st.session_state.is_generating = True
+        yamaguchi_context = load_yamaguchi_data()
+        system_prompt = f"""
 あなたは山口市の行政文書や政策に詳しい親切なアシスタントです。
 以下の情報は山口市が公開している計画・政策の一部です。
 必要に応じて内容を参考にして、市民にわかりやすく、丁寧に答えてください。
@@ -68,21 +68,22 @@ if st.session_state.agreed:
 
 {yamaguchi_context}
 """
-            try:
-                response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_query}
-                    ]
-                )
-                answer = response.choices[0].message.content.strip()
-            except Exception as e:
-                answer = f"⚠️ エラーが発生しました：{e}"
+        try:
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_query}
+                ]
+            )
+            answer = response.choices[0].message.content.strip()
+        except Exception as e:
+            answer = f"⚠️ エラーが発生しました：{e}"
 
         log_to_gsheet(user_query, answer)
         st.session_state.last_answer = answer
         st.session_state.query = user_query
+        st.session_state.is_generating = False
 
     # ✅ キャラクターと質問サジェスト
     st.markdown("**🗣️ ねぇねぇ、こんなこと気になってない？**")
@@ -93,8 +94,9 @@ if st.session_state.agreed:
         "バス路線の見直しって？",
         "市役所の建て替えは？",
     ]
-    for s in random.sample(suggestions, k=3):
-        if st.button(f"💬 {s}", key=f"sugg_{s}"):
+    cols = st.columns(len(suggestions))
+    for i, s in enumerate(random.sample(suggestions, k=3)):
+        if cols[i].button(f"💬 {s}", key=f"sugg_{s}"):
             ask_and_display_answer(s)
             st.rerun()
 
@@ -105,15 +107,19 @@ if st.session_state.agreed:
         st.session_state.send_now = False
         ask_and_display_answer(query)
 
-    if st.session_state.last_answer:
-        st.write("🤎 **きいてみらい山口の回答**")
+    # ✅ 回答欄・スピナー
+    st.write("🤎 **きいてみらい山口の回答**")
+    if st.session_state.is_generating:
+        st.info("回答を生成中です...")
+    elif st.session_state.last_answer:
         st.success(st.session_state.last_answer)
 
-        # ✅ 再サジェスト
+        # ✅ 再サジェスト（横並び）
         st.divider()
         st.markdown("**👀 他にも気になること、こんなのはどう？**")
-        for s in random.sample(suggestions, k=3):
-            if st.button(f"🔄 {s}", key=f"again_{s}"):
+        again_cols = st.columns(len(suggestions))
+        for i, s in enumerate(random.sample(suggestions, k=3)):
+            if again_cols[i].button(f"🔄 {s}", key=f"again_{s}"):
                 ask_and_display_answer(s)
                 st.rerun()
 
