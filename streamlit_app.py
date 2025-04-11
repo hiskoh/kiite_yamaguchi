@@ -88,9 +88,18 @@ def ask_and_display_answer(user_query):
 st.title("🌞 聞いてみらい山口")
 
 # --- キャラクターとサジェスト ---
-st.image("character.gif", width=100)
+#st.image("character.gif", width=100)
 st.markdown("<div style='padding: 0.5em; background-color: #f9f9f9; border-radius: 10px;'>🗣️ <b>ねぇねぇ、こんなこと気になってない？</b></div>", unsafe_allow_html=True)
 
+# --- チャット欄 ---
+st.markdown("### 💬 あなたの質問")
+query = st.text_input("", value=st.session_state.query)
+
+if query and (st.session_state.send_now or st.button("送信")):
+    st.session_state.send_now = False
+    ask_and_display_answer(query)
+
+#サジェスト
 suggestions_master = [
     "山口市の課題は？",
     "市役所の建て替えは？",
@@ -106,14 +115,6 @@ for i, s in enumerate(st.session_state.suggestions_sampled):
         st.session_state.query = s
         st.session_state.send_now = True
         st.rerun()
-
-# --- チャット欄 ---
-st.markdown("### 💬 あなたの質問")
-query = st.text_input("", value=st.session_state.query)
-
-if query and (st.session_state.send_now or st.button("送信")):
-    st.session_state.send_now = False
-    ask_and_display_answer(query)
 
 # --- 回答欄 ---
 st.markdown("### 🤖 回答はこちら")
