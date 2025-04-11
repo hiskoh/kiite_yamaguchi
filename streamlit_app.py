@@ -8,10 +8,15 @@ from datetime import datetime
 if "agreed" not in st.session_state:
     st.session_state.agreed = False
 
-# ✅ 同意していない場合は説明と確認ボタンだけ表示
+# ✅ 同意直後に一度だけ rerun してチャット画面へ
+if st.session_state.get("agreed_just_now"):
+    st.session_state.agreed_just_now = False  # フラグをオフに
+    st.experimental_rerun()
+
+# ✅ 同意していない状態
 if not st.session_state.agreed:
     st.set_page_config(page_title="聞いてみらい山口", page_icon="🌞")
-    st.title("🌞 聞いてみらい山口")
+    st.title("🌞 聞いてみらい山口 - ご利用にあたって")
     st.warning("このチャットを利用するには、以下の内容に同意いただく必要があります。")
 
     st.markdown("""
@@ -27,9 +32,7 @@ if not st.session_state.agreed:
     with col1:
         if st.button("✅ 同意して利用を開始する"):
             st.session_state.agreed = True
-            st.success("✅ 同意いただき有難うございます。チャット画面を表示します。")
-            #st.stop()  # rerunは不要・安全に
-
+            st.session_state.agreed_just_now = True  # rerunフラグ
     with col2:
         if st.button("🚪 同意しない"):
             st.error("ご利用ありがとうございました。")
