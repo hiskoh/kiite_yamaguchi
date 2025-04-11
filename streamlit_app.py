@@ -13,6 +13,11 @@ for key in ["agreed", "query", "send_now", "last_answer", "is_generating"]:
     if key not in st.session_state:
         st.session_state[key] = False if key not in ["query", "last_answer"] else ""
 
+# ✅ プロンプト読み込み関数
+def load_prompt():
+    with open("prompts/system_prompt.txt", "r", encoding="utf-8") as f:
+        return f.read()
+        
 # ✅ 同意画面
 if not st.session_state.agreed:
     st.title("🌞 きいてみらい山口")
@@ -62,14 +67,7 @@ def ask_and_display_answer(user_query):
     st.session_state.is_generating = True
     with st.spinner("⏳ 回答中... 少々お待ちください"):
         yamaguchi_context = load_yamaguchi_data()
-        system_prompt = f"""
-あなたは山口市の行政文書や政策に詳しい親切なアシスタントです。
-以下の情報は山口市が公開している計画・政策の一部です。
-必要に応じて内容を参考にして、市民にわかりやすく、丁寧に答えてください。
-以下に載っていない情報や政治的な主張、山口市の行政とは関係ない質問に関しては一貫して「申し訳ありません、その質問にはお答えできません」と回答してください。
-
-{yamaguchi_context}
-"""
+        system_prompt = f"{load_prompt()}\n\n{yamaguchi_context}"
         try:
             response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
