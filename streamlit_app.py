@@ -5,7 +5,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 
 # ✅ ページ設定（1回のみ）
-st.set_page_config(page_title="聞いてみらい山口", page_icon="🌞")
+st.set_page_config(page_title="きいてみらい山口", page_icon="🌞")
 
 # ✅ セッション管理（同意状況）
 if "agreed" not in st.session_state:
@@ -13,7 +13,7 @@ if "agreed" not in st.session_state:
 
 # ✅ 同意していない場合は利用規約画面を表示
 if not st.session_state.agreed:
-    st.title("🌞 聞いてみらい山口")
+    st.title("🌞 きいてみらい山口")
     st.warning("このチャットを利用するには、以下の内容に同意いただく必要があります。")
 
     st.markdown("""
@@ -60,8 +60,8 @@ if st.session_state.agreed:
             combined_info += f"\n\n【{row['カテゴリ']}】{row['タイトル']}：{row['本文']}"
         return combined_info.strip()
 
-    st.title("🌞聞いてみらい山口")
-    st.write("山口市の“これから”を、一緒に考えるチャットです。気になることを、気軽に聞いてみてください。")
+    st.title("🌞きいてみらい山口")
+    st.write("山口市の“これから”を、一緒に考えるチャットです。気になることを、気軽にきいてみてください。")
 
     query = st.text_input("気になることを入力してください")
 
@@ -91,13 +91,10 @@ if st.session_state.agreed:
                 answer = f"⚠️ エラーが発生しました：{e}"
 
         log_to_gsheet(query, answer)
-        st.write("🤎 **聞いてみらい山口の回答**")
+        st.write("🤎 **きいてみらい山口の回答**")
         st.success(answer)
 
     st.caption("""
-📌 本チャットの内容は、みなさんの関心や疑問をもとに、よくある質問を整理したり、
-行政との新しいコミュニケーションの形をつくっていくことを目的に記録させていただいています。
-個人情報は入力しないようお願いいたします。また、内容の記録に同意された方のみ、チャット入力・送信をお願いします。  
 ⚠️ 回答は生成AIによるものであり、正確性を保証するものではありません。  
 🙌 本プロジェクトは個人により運営されています。ご支援いただける方はぜひこちらから：  
 [💛 codocで支援する](https://codoc.jp/sites/p8cEFlTZQA/entries/MMZnODc1dw)
