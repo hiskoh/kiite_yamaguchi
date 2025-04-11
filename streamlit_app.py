@@ -127,7 +127,7 @@ elif st.session_state.last_answer:
 st.divider()
 st.markdown("**👀 他にも気になること、こんなのはどう？**")
 again_cols = st.columns(3)
-for i, s in enumerate(random.sample(suggestions, k=3)):
+for i, s in enumerate(random.sample(suggestions_master, k=3)):
     if again_cols[i].button(f"🔄 {s}", key=f"again_{s}"):
         st.session_state.query = s
         st.session_state.send_now = True
