@@ -84,20 +84,31 @@ def ask_and_display_answer(user_query):
     st.session_state.last_answer = answer
     st.session_state.is_generating = False
 
+
+# ✅ ページ設定
+st.set_page_config(page_title="きいてみらい山口", page_icon="🌞")
+
 # 🔸 キャラクター & サジェスト
 st.image("character.gif", width=100)
 st.markdown("**🗣️ ねぇねぇ、こんなこと気になってない？**")
-suggestions = [
+
+suggestions_master = [
     "山口市の課題は？",
     "市役所の建て替えは？",
     "公共交通は不便にならない？"
 ]
+
+# 一度だけランダム選定し、セッションに保存
+if "suggestions_sampled" not in st.session_state:
+    st.session_state.suggestions_sampled = random.sample(suggestions_master, k=3)
+
 cols = st.columns(3)
-for i, s in enumerate(random.sample(suggestions, k=3)):
+for i, s in enumerate(st.session_state.suggestions_sampled):
     if cols[i].button(f"💬 {s}", key=f"sugg_{s}"):
         st.session_state.query = s
         st.session_state.send_now = True
         st.rerun()
+
 
 # 🔸 チャット欄
 query = st.text_input("気になることを入力してください", value=st.session_state.query)
