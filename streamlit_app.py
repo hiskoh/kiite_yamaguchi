@@ -10,9 +10,9 @@ import time
 st.set_page_config(page_title="きいてみらい山口", page_icon="🌞")
 
 # ✅ セッションステートの初期化
-for key in ["agreed", "query", "send_now"]:
+for key in ["agreed", "query", "send_now", "last_answer"]:
     if key not in st.session_state:
-        st.session_state[key] = False if key != "query" else ""
+        st.session_state[key] = False if key not in ["query", "last_answer"] else ""
 
 # ✅ 同意画面
 if not st.session_state.agreed:
@@ -28,12 +28,10 @@ if not st.session_state.agreed:
     - ✅ チャット内容は記録されます。内容の記録に同意された方のみ、チャットをご利用ください。
     """)
 
-    agree_check = st.checkbox("上記の内容に同意します")
-    if agree_check:
+    if st.button("✅ 上記の内容に同意してチャットをはじめる"):
         st.session_state.agreed = True
         st.rerun()
-    else:
-        st.stop()
+    st.stop()
 
 # ✅ Chatモード（同意済）
 if st.session_state.agreed:
@@ -83,8 +81,8 @@ if st.session_state.agreed:
                 answer = f"⚠️ エラーが発生しました：{e}"
 
         log_to_gsheet(user_query, answer)
-        st.write("🤎 **きいてみらい山口の回答**")
-        st.success(answer)
+        st.session_state.last_answer = answer
+        st.session_state.query = user_query
 
     # ✅ キャラクターと質問サジェスト
     st.markdown("**🗣️ ねぇねぇ、こんなこと気になってない？**")
@@ -97,9 +95,8 @@ if st.session_state.agreed:
     ]
     for s in random.sample(suggestions, k=3):
         if st.button(f"💬 {s}", key=f"sugg_{s}"):
-            st.session_state.query = s
             ask_and_display_answer(s)
-            st.stop()
+            st.rerun()
 
     # ✅ チャット欄
     query = st.text_input("気になることを入力してください", value=st.session_state.query)
@@ -108,14 +105,17 @@ if st.session_state.agreed:
         st.session_state.send_now = False
         ask_and_display_answer(query)
 
+    if st.session_state.last_answer:
+        st.write("🤎 **きいてみらい山口の回答**")
+        st.success(st.session_state.last_answer)
+
         # ✅ 再サジェスト
         st.divider()
         st.markdown("**👀 他にも気になること、こんなのはどう？**")
         for s in random.sample(suggestions, k=3):
             if st.button(f"🔄 {s}", key=f"again_{s}"):
-                st.session_state.query = s
                 ask_and_display_answer(s)
-                st.stop()
+                st.rerun()
 
     # ✅ フッター
     st.caption("""
