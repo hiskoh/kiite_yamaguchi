@@ -125,7 +125,9 @@ elif st.session_state.last_answer:
     st.success(st.session_state.last_answer)
 
 
-# --- フッター ---
+# --- フッター 
+st.divider() 
+
 st.caption("""
 ⚠️ 回答は生成AIによるものであり、正確性を保証するものではありません。  
 🙌 本プロジェクトは個人により運営されています。ご支援いただける方はぜひこちらから：  
