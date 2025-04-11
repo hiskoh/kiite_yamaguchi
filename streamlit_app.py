@@ -109,11 +109,12 @@ for i, s in enumerate(st.session_state.suggestions_sampled):
         st.rerun()
 
 
-# 🔸 チャット欄
-query = st.text_input("気になることを入力してください")
 
-if query:
-    ask_and_display_answer(query)
+# 🔸 チャット欄
+ query = st.text_input("気になることを入力してください", value=st.session_state.query)
+
+ if query:
+     ask_and_display_answer(query)
 
 # 🔸 回答欄
 st.write("🤎 **きいてみらい山口の回答**")
