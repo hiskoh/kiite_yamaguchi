@@ -90,6 +90,8 @@ st.title("🌞 聞いてみらい山口")
 # --- キャラクターとサジェスト ---
 #st.image("character.gif", width=100)
 
+st.write("") 
+
 # --- チャット欄 ---
 st.markdown("#### 💬 質問してみよう")
 query = st.text_input("", value=st.session_state.query)
@@ -98,7 +100,7 @@ query = st.text_input("", value=st.session_state.query)
 suggestions_master = [
     "山口市の課題は？",
     "市役所の建て替えは？",
-    "公共交通は不便にならない？"
+    "山口市の人口は？"
 ]
 
 if "suggestions_sampled" not in st.session_state:
@@ -106,7 +108,7 @@ if "suggestions_sampled" not in st.session_state:
 
 cols = st.columns(3)
 for i, s in enumerate(st.session_state.suggestions_sampled):
-    if cols[i].button(f"💬 {s}", key=f"sugg_{s}"):
+    if cols[i].button(f" {s}", key=f"sugg_{s}"):
         st.session_state.query = s
         st.session_state.send_now = True
         st.rerun()
