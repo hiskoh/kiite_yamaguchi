@@ -32,6 +32,11 @@ if not st.session_state.agreed:
         if st.button("✅ 同意して利用を開始する"):
             st.session_state.agreed = True
             st.session_state.trigger_rerun = True
+        # ← このようにイベント外で rerun を実行
+        if st.session_state.trigger_rerun:
+            st.session_state.trigger_rerun = False
+            st.experimental_rerun()
+            
     with col2:
         if st.button("🚪 同意しない"):
             st.error("ご利用ありがとうございました。")
