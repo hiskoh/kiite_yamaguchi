@@ -27,7 +27,9 @@ if not st.session_state.agreed:
     with col1:
         if st.button("✅ 同意して利用を開始する"):
             st.session_state.agreed = True
-            st.experimental_rerun()
+            st.success("✅ 同意いただき有難うございます。チャット画面を表示します。")
+            st.stop()  # rerunは不要・安全に
+
     with col2:
         if st.button("🚪 同意しない"):
             st.error("ご利用ありがとうございました。")
