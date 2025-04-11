@@ -111,7 +111,7 @@ if query and (st.session_state.send_now or st.button("送信")):
 # 🔸 回答欄
 st.write("🤎 **きいてみらい山口の回答**")
 if st.session_state.is_generating:
-    st.info("🤖 回答を生成中です... 少々お待ちください")
+    st.info("⏳ 調べています... 少々お待ちください")
 elif st.session_state.last_answer:
     st.success(st.session_state.last_answer)
 
