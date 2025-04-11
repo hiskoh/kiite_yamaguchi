@@ -40,7 +40,14 @@ if not st.session_state.agreed:
         if st.button("🚪 同意しない"):
             st.error("ご利用ありがとうございました。")
             st.stop()
-
+            
+# ✅ 遅延トリガーがあればここで一度だけ再描画（擬似スリープ）
+if st.session_state.delay_trigger:
+    st.session_state.delay_trigger = False
+    time.sleep(0.5)
+    st.session_state.send_now = True
+    st.rerun()
+    
 # ✅ 同意済みの場合は通常チャット画面を表示
 if st.session_state.agreed:
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
