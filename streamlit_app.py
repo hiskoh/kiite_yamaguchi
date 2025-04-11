@@ -58,6 +58,7 @@ if st.session_state.agreed:
         return combined_info.strip()
 
     def ask_and_display_answer(user_query):
+        st.session_state.query = user_query
         st.session_state.is_generating = True
         yamaguchi_context = load_yamaguchi_data()
         system_prompt = f"""
@@ -82,7 +83,6 @@ if st.session_state.agreed:
 
         log_to_gsheet(user_query, answer)
         st.session_state.last_answer = answer
-        st.session_state.query = user_query
         st.session_state.is_generating = False
 
     # ✅ キャラクターと質問サジェスト
@@ -97,7 +97,8 @@ if st.session_state.agreed:
     cols = st.columns(len(suggestions))
     for i, s in enumerate(random.sample(suggestions, k=3)):
         if cols[i].button(f"💬 {s}", key=f"sugg_{s}"):
-            ask_and_display_answer(s)
+            st.session_state.query = s
+            st.session_state.is_generating = True
             st.rerun()
 
     # ✅ チャット欄
@@ -110,6 +111,7 @@ if st.session_state.agreed:
     # ✅ 回答欄・スピナー
     st.write("🤎 **きいてみらい山口の回答**")
     if st.session_state.is_generating:
+        ask_and_display_answer(st.session_state.query)
         st.info("回答を生成中です...")
     elif st.session_state.last_answer:
         st.success(st.session_state.last_answer)
@@ -120,7 +122,8 @@ if st.session_state.agreed:
         again_cols = st.columns(len(suggestions))
         for i, s in enumerate(random.sample(suggestions, k=3)):
             if again_cols[i].button(f"🔄 {s}", key=f"again_{s}"):
-                ask_and_display_answer(s)
+                st.session_state.query = s
+                st.session_state.is_generating = True
                 st.rerun()
 
     # ✅ フッター
