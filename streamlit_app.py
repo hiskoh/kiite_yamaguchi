@@ -3,13 +3,18 @@ from openai import OpenAI
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
+import random
 
 # ✅ ページ設定（1回のみ）
 st.set_page_config(page_title="きいてみらい山口", page_icon="🌞")
 
-# ✅ セッション管理（同意状況）
+# ✅ セッション管理（同意状況 / 質問サジェスト）
 if "agreed" not in st.session_state:
     st.session_state.agreed = False
+if "query" not in st.session_state:
+    st.session_state.query = ""
+if "send_now" not in st.session_state:
+    st.session_state.send_now = False
 
 # ✅ 同意していない場合は利用規約画面を表示
 if not st.session_state.agreed:
@@ -29,7 +34,7 @@ if not st.session_state.agreed:
     with col1:
         if st.button("✅ 同意して利用を開始する"):
             st.session_state.agreed = True
-            st.stop()  # 同意直後に自然な再描画で画面遷移
+            st.stop()
 
     with col2:
         if st.button("🚪 同意しない"):
@@ -60,15 +65,30 @@ if st.session_state.agreed:
             combined_info += f"\n\n【{row['カテゴリ']}】{row['タイトル']}：{row['本文']}"
         return combined_info.strip()
 
-    st.title("🌞きいてみらい山口")
-    st.write("山口市の“これから”を、一緒に考えるチャットです。気になることを、気軽にきいてみてください。")
+    # 🔸 キャラクター & サジェスト
+    st.image("character.gif", width=100)  # GIFキャラ（ファイル名を調整）
+    st.markdown("**🗣️ ねぇねぇ、こんなこと気になってない？**")
+    suggestions = [
+        "自転車レーンは増えるの？",
+        "バス路線の見直しって？",
+        "図書館って移転するの？",
+        "市役所の建て替えは？",
+        "歩道の整備って進んでる？"
+    ]
+    random_suggestions = random.sample(suggestions, k=3)
+    for s in random_suggestions:
+        if st.button(f"💬 {s}"):
+            st.session_state.query = s
+            st.session_state.send_now = True
+            st.experimental_rerun()
 
-    query = st.text_input("気になることを入力してください")
+    # 🔸 チャットUI
+    query = st.text_input("気になることを入力してください", value=st.session_state.query)
 
-    if query:
+    if query and (st.session_state.send_now or st.button("送信")):
+        st.session_state.send_now = False
         with st.spinner("回答を生成中..."):
             yamaguchi_context = load_yamaguchi_data()
-
             system_prompt = f"""
 あなたは山口市の行政文書や政策に詳しい親切なアシスタントです。
 以下の情報は山口市が公開している計画・政策の一部です。
@@ -77,7 +97,6 @@ if st.session_state.agreed:
 
 {yamaguchi_context}
 """
-
             try:
                 response = client.chat.completions.create(
                     model="gpt-3.5-turbo",
@@ -93,6 +112,16 @@ if st.session_state.agreed:
         log_to_gsheet(query, answer)
         st.write("🤎 **きいてみらい山口の回答**")
         st.success(answer)
+
+        # 🔁 回答後の再サジェスト
+        st.divider()
+        st.markdown("**👀 他にも気になること、こんなのはどう？**")
+        again_suggestions = random.sample(suggestions, k=3)
+        for s in again_suggestions:
+            if st.button(f"🔄 {s}", key=f"again_{s}"):
+                st.session_state.query = s
+                st.session_state.send_now = True
+                st.experimental_rerun()
 
     st.caption("""
 ⚠️ 回答は生成AIによるものであり、正確性を保証するものではありません。  
