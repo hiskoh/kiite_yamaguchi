@@ -59,7 +59,7 @@ def load_yamaguchi_data():
     rows = sheet.get_all_records()
     combined_info = ""
     for row in rows:
-        combined_info += f"\n\n【{row['カテゴリ']}】{row['タイトル']}：{row['本文']}"
+        combined_info += f"\n\n【{row['カテゴリ']} / {row['サブカテゴリ']}】{row['タイトル']}：{row['説明文']}"
     return combined_info.strip()
 
 def ask_and_display_answer(user_query):
