@@ -69,6 +69,7 @@ def load_yamaguchi_data():
 
 # ✅ Enter送信処理（テキスト確定時）
 def on_enter():
+    # 入力が空でなければ送信フラグを立てるだけ
     if st.session_state.input.strip():
         st.session_state.send_now = True
 
