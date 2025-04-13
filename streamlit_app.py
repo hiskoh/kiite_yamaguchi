@@ -11,7 +11,12 @@ st.set_page_config(page_title="きいてみらい山口", page_icon="🌞")
 # ✅ セッションステートの初期化
 for key in ["agreed", "query", "send_now", "last_answer", "is_generating", "input", "suggestions_sampled"]:
     if key not in st.session_state:
-        st.session_state[key] = "" if key in ["query", "last_answer", "input"] else False
+        if key in ["query", "last_answer", "input"]:
+            st.session_state[key] = ""
+        elif key == "suggestions_sampled":
+            st.session_state[key] = []
+        else:
+            st.session_state[key] = False
 
 # ✅ プロンプト読み込み関数
 def load_prompt():
@@ -22,22 +27,26 @@ def load_prompt():
 if not st.session_state.agreed:
     st.title("🌞 きいてみらい山口")
     st.warning("このチャットを利用するには、以下の内容に同意いただく必要があります。")
+
     st.markdown("""
     ### ご利用にあたってのご案内
+
     - このチャットは、市民の関心や疑問をもとに、よくある質問を整理・可視化し、  
       行政との新しいコミュニケーションの形をつくっていくことを目指して運営されています。  
     - **個人情報（氏名・住所・連絡先など）の入力は行わないでください。**  
     - チャット内容は記録されます。内容の記録に同意された方のみ、チャットをご利用ください。
     """)
+    
     if st.button("✅ 同意してチャットをはじめる"):
         st.session_state.agreed = True
-        st.rerun()
+        st.rerun() 
     st.stop()
 
 # ✅ Chatモード（同意済）
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # 🔧 Google Sheets 接続
+
 def get_gspread_client():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gsheets_service_account"], scope)
@@ -58,6 +67,11 @@ def load_yamaguchi_data():
         combined_info += f"\n\n【{row['カテゴリ']} / {row['サブカテゴリ']}】{row['タイトル']}：{row['説明文']}"
     return combined_info.strip()
 
+# ✅ Enter送信処理（テキスト確定時）
+def on_enter():
+    if st.session_state.input.strip():
+        st.session_state.send_now = True
+
 def ask_and_display_answer(user_query):
     st.session_state.query = user_query
     st.session_state.is_generating = True
@@ -75,20 +89,21 @@ def ask_and_display_answer(user_query):
             answer = response.choices[0].message.content.strip()
         except Exception as e:
             answer = f"⚠️ エラーが発生しました：{e}"
+
     log_to_gsheet(user_query, answer)
     st.session_state.last_answer = answer
     st.session_state.is_generating = False
 
-# ✅ Enterで送信するための関数
-def on_enter():
-    if st.session_state.input.strip():
-        st.session_state.send_now = True
-
 # 🔸 UI構成
 st.title("🌞 きいてみらい山口")
-st.markdown("#### 💬 質問してみよう")
 
-# --- 入力欄（Enterで送信）
+# --- キャラクターとサジェスト ---
+#st.image("character.gif", width=100)
+
+st.write("") 
+
+# --- チャット欄（送信ボタンなし・Enter送信） ---
+st.markdown("#### 💬 質問してみよう")
 st.text_input(
     label="",
     key="input",
@@ -97,7 +112,7 @@ st.text_input(
     on_change=on_enter
 )
 
-# --- サジェストボタン
+# --- サジェスト ---
 suggestions_master = [
     "山口市の課題は？",
     "市役所の建て替えは？",
@@ -112,13 +127,12 @@ for i, s in enumerate(st.session_state.suggestions_sampled):
         st.session_state.input = s
         st.session_state.query = s
         st.session_state.send_now = True
-        st.rerun()
 
-# --- 送信処理（送信ボタンは使わない）
+# --- 送信処理（Enter or サジェスト選択時） ---
 if st.session_state.input and st.session_state.send_now:
     st.session_state.send_now = False
     ask_and_display_answer(st.session_state.input)
-    
+
 # --- 回答欄 ---
 st.markdown("#### 💡回答はこちら")
 if st.session_state.is_generating:
@@ -126,8 +140,10 @@ if st.session_state.is_generating:
 elif st.session_state.last_answer:
     st.success(st.session_state.last_answer)
 
+
 # --- フッター 
-st.divider()
+st.divider() 
+
 st.caption("""
 ⚠️ 回答は生成AIによるものであり、正確性を保証するものではありません。  
 🙌 本プロジェクトは個人により運営されています。ご支援いただける方はぜひこちらから：  
