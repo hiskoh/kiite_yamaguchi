@@ -76,6 +76,7 @@ def on_enter():
 def ask_and_display_answer(user_query):
     st.session_state.query = user_query
     st.session_state.is_generating = True
+    st.markdown(f"📝 今の質問：**{user_query}**")
     with st.spinner("⏳ 回答中... 少々お待ちください"):
         yamaguchi_context = load_yamaguchi_data()
         system_prompt = f"{load_prompt()}\n\n{yamaguchi_context}"
