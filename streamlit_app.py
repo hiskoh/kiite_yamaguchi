@@ -125,10 +125,10 @@ if not st.session_state.suggestions_sampled:
 cols = st.columns(3)
 for i, s in enumerate(st.session_state.suggestions_sampled):
     if cols[i].button(f" {s}", key=f"sugg_{s}"):
-        st.session_state.input = s
+        st.session_state["input"] = s  
         st.session_state.query = s
         st.session_state.send_now = True
-
+        
 # --- 送信処理（Enter or サジェスト選択時） ---
 if st.session_state.input and st.session_state.send_now:
     st.session_state.send_now = False
