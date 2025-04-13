@@ -108,7 +108,7 @@ st.markdown("#### 💬 質問してみよう")
 st.text_input(
     label="",
     key="input",
-    value=st.session_state.input,
+    value=st.session_state.query,
     placeholder="例：山口市の総合計画について教えて",
     on_change=on_enter
 )
@@ -125,7 +125,6 @@ if not st.session_state.suggestions_sampled:
 cols = st.columns(3)
 for i, s in enumerate(st.session_state.suggestions_sampled):
     if cols[i].button(f" {s}", key=f"sugg_{s}"):
-        st.session_state["input"] = s  
         st.session_state.query = s
         st.session_state.send_now = True
         
