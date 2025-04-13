@@ -83,7 +83,6 @@ def ask_and_display_answer(user_query):
 def on_enter():
     if st.session_state.input.strip():
         st.session_state.send_now = True
-        st.rerun()
 
 # 🔸 UI構成
 st.title("🌞 きいてみらい山口")
@@ -119,7 +118,7 @@ for i, s in enumerate(st.session_state.suggestions_sampled):
 if st.session_state.input and st.session_state.send_now:
     st.session_state.send_now = False
     ask_and_display_answer(st.session_state.input)
-
+    
 # --- 回答欄 ---
 st.markdown("#### 💡回答はこちら")
 if st.session_state.is_generating:
