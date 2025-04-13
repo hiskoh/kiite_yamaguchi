@@ -107,10 +107,11 @@ st.markdown("#### 💬 質問してみよう")
 st.text_input(
     label="",
     key="input",
-    value=st.session_state.input_value,  
+    value=st.session_state.input_value,
     placeholder="例：山口市の総合計画について教えて",
-    on_change=on_enter
+    on_change=lambda: st.session_state.update(send_now=True)
 )
+
 
 
 # --- サジェスト ---
@@ -125,9 +126,10 @@ if not st.session_state.suggestions_sampled:
 cols = st.columns(3)
 for i, s in enumerate(st.session_state.suggestions_sampled):
     if cols[i].button(f" {s}", key=f"sugg_{s}"):
-        st.session_state.input_value = s 
+        st.session_state.input_value = s
         st.session_state.query = s
-        st.session_state.send_now = True
+        ask_and_display_answer(s)  # ← 直接呼び出す！即送信！
+
 
 # --- 送信処理（Enter or サジェスト選択時） ---
 if st.session_state.input and st.session_state.send_now:
