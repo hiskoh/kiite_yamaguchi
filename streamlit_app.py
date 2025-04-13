@@ -113,8 +113,6 @@ st.text_input(
     on_change=lambda: st.session_state.update(send_now=True)
 )
 
-
-
 # --- サジェスト ---
 suggestions_master = [
     "山口市の課題は？",
@@ -127,12 +125,10 @@ if not st.session_state.suggestions_sampled:
 cols = st.columns(3)
 for i, s in enumerate(st.session_state.suggestions_sampled):
     if cols[i].button(f" {s}", key=f"sugg_{s}"):
-        # 次回の描画で入力欄に表示されるようにセット
-        st.session_state.input_value = s
-        st.session_state.query = s
-        st.session_state.send_now = False  # 念のためリセット
-        st.session_state.input = s         # 回答にはすぐ使える
-        ask_and_display_answer(s)          # ✅ 今すぐ回答表示
+        st.session_state.input_value = s     # 入力欄に反映させる（次の描画）
+        st.session_state.query = s           # ログ用
+        ask_and_display_answer(s)            # ✅ 今すぐ回答表示（text_inputとは独立）
+
 
 # --- 送信処理（Enter or サジェスト選択時） ---
 if st.session_state.input and st.session_state.send_now:
