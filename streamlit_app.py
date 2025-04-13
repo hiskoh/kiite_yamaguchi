@@ -125,13 +125,11 @@ if not st.session_state.suggestions_sampled:
 cols = st.columns(3)
 for i, s in enumerate(st.session_state.suggestions_sampled):
     if cols[i].button(f" {s}", key=f"sugg_{s}"):
-        st.session_state.input_value = s   # 次回描画で検索窓に表示される
-        st.session_state.query = s         # ログ用（必要なら）
-        st.session_state.send_now = True   # 次回送信処理をトリガー
-        ask_and_display_answer(s)          # 回答を表示させる
-        st.rerun()                         # ✅ 今すぐ再描画させる！
-
-
+        st.session_state.input_value = s
+        st.session_state.query = s
+        st.session_state.send_now = False   # ← 強制的に送信を止める
+        ask_and_display_answer(s)           # 即時回答（UX重視）
+        st.rerun()                          # 再描画して検索窓に反映
 
 # --- 送信処理（Enter or サジェスト選択時） ---
 if st.session_state.input and st.session_state.send_now:
