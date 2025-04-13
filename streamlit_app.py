@@ -26,7 +26,6 @@ def load_prompt():
 # ✅ 同意画面
 if not st.session_state.agreed:
     st.title("🌞 きいてみらい山口")
-    st.warning("このチャットを利用するには、以下の内容に同意いただく必要があります。")
 
     st.markdown("""
     ### ご利用にあたってのご案内
@@ -36,6 +35,8 @@ if not st.session_state.agreed:
     - **個人情報（氏名・住所・連絡先など）の入力は行わないでください。**  
     - チャット内容は記録されます。内容の記録に同意された方のみ、チャットをご利用ください。
     """)
+    
+    st.warning("このチャットを利用するには、以下の内容に同意いただく必要があります。")
     
     if st.button("✅ 同意してチャットをはじめる"):
         st.session_state.agreed = True
@@ -126,10 +127,9 @@ if not st.session_state.suggestions_sampled:
 cols = st.columns(3)
 for i, s in enumerate(st.session_state.suggestions_sampled):
     if cols[i].button(f" {s}", key=f"sugg_{s}"):
-        st.session_state.input_value = s
-        st.session_state.query = s
-        ask_and_display_answer(s)  # ← 直接呼び出す！即送信！
-
+        st.session_state.input_value = s   # 次回描画で表示されるように
+        st.session_state.send_now = True   # 次回描画で送信されるように
+        st.stop()                          # ← rerunを確実に起こす（重要！）
 
 # --- 送信処理（Enter or サジェスト選択時） ---
 if st.session_state.input and st.session_state.send_now:
