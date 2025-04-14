@@ -8,9 +8,7 @@ import random
 # ✅ ページ設定
 import streamlit as st
 
-st.set_page_config(page_title="きいてギカイやまぐち", layout="wide", page_icon="📜")
-st.title("きいてギカイやまぐち")
-st.write("こちらは議会のやりとりから答える“勝手議会”モードです。")
+st.set_page_config(page_title="きいてギカイやまぐち（β）", layout="wide", page_icon="📜")
 
 # ✅ セッションステートの初期化
 for key in ["agreed", "query", "send_now", "last_answer", "is_generating", "input", "input_value", "suggestions_sampled"]:
@@ -29,7 +27,7 @@ def load_prompt():
 
 # ✅ 同意画面
 if not st.session_state.agreed:
-    st.title("📜きいてギカイやまぐち")
+    st.title("📜きいてギカイやまぐち（β）")
 
     st.markdown("""
     ### ご利用にあたってのご案内
@@ -99,7 +97,7 @@ def ask_and_display_answer(user_query):
     st.session_state.is_generating = False
 
 # 🔸 UI構成
-st.title("📜 きいてギカイ山口")
+st.title("📜 きいてギカイやまぐち（β）")
 
 # --- キャラクターとサジェスト ---
 #st.image("character.gif", width=100)
