@@ -1,4 +1,5 @@
 import streamlit as st
+import chardet
 from openai import OpenAI
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
@@ -106,8 +107,10 @@ def list_txt_files_recursive(service, folder_id):
     return files
 
 def download_file_content(service, file_id):
-    file = service.files().get_media(fileId=file_id).execute()
-    return file.decode("utf-8")
+    file_data = service.files().get_media(fileId=file_id).execute()
+    detected = chardet.detect(file_data)
+    encoding = detected["encoding"] or "utf-8"
+    return file_data.decode(encoding, errors="replace")
 
 
 # ✅ Enter送信処理（テキスト確定時）
