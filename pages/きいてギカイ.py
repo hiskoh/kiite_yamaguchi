@@ -9,6 +9,22 @@ import random
 # ✅ ページ設定
 import streamlit as st
 
+folder_id = st.secrets["GOOGLE_DRIVE_FOLDER_ID"]
+st.write("🔍 Using folder ID:", folder_id)
+
+creds = Credentials.from_service_account_info(
+    st.secrets["gsheets_service_account"],
+    scopes=["https://www.googleapis.com/auth/drive"]
+)
+service = build("drive", "v3", credentials=creds)
+
+try:
+    result = service.files().list(q=f"'{folder_id}' in parents", pageSize=1).execute()
+    st.success("✅ Drive access succeeded.")
+except Exception as e:
+    st.error(f"❌ Drive access failed: {e}")
+
+
 st.set_page_config(page_title="きいてギカイやまぐち（β）", layout="wide", page_icon="📜")
 
 # ✅ セッションステートの初期化
