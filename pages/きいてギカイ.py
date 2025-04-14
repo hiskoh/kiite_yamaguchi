@@ -2,9 +2,10 @@ import streamlit as st
 from openai import OpenAI
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+from googleapiclient.discovery import build
+from google.oauth2.service_account import Credentials
 from datetime import datetime
 import random
-
 # ✅ ページ設定
 import streamlit as st
 
@@ -60,14 +61,54 @@ def log_to_gsheet(question, answer):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     sheet.append_row([now, question, answer])
 
-def load_yamaguchi_data():
-    client_gs = get_gspread_client()
-    sheet = client_gs.open_by_key(st.secrets["GOOGLE_DATA_SHEET_ID"]).worksheet("data")
-    rows = sheet.get_all_records()
-    combined_info = ""
-    for row in rows:
-        combined_info += f"\n\n【{row['カテゴリ']} / {row['サブカテゴリ']}】{row['タイトル']}：{row['説明文']}"
-    return combined_info.strip()
+# Google Drive から .txt ファイルを取得
+def load_gikai_data():
+    creds = Credentials.from_service_account_info(
+        st.secrets["gsheets_service_account"],
+        scopes=["https://www.googleapis.com/auth/drive"]
+    )
+    service = build("drive", "v3", credentials=creds)
+
+    folder_id = st.secrets["GOOGLE_DRIVE_FOLDER_ID"]
+    files = list_txt_files_recursive(service, folder_id)
+
+    combined_text = ""
+    for f in files:
+        content = download_file_content(service, f["id"])
+        combined_text += f"\n\n【{f['name']}】\n{content}"
+    
+    return combined_text.strip()
+    
+def list_txt_files_recursive(service, folder_id):
+    query = f"'{folder_id}' in parents and trashed = false"
+    files = []
+    page_token = None
+
+    while True:
+        response = service.files().list(
+            q=query,
+            spaces='drive',
+            fields="nextPageToken, files(id, name, mimeType)",
+            pageToken=page_token
+        ).execute()
+        
+        for file in response.get('files', []):
+            if file['mimeType'] == 'application/vnd.google-apps.folder':
+                # サブフォルダを再帰探索
+                files.extend(list_txt_files_recursive(service, file['id']))
+            elif file['name'].endswith(".txt"):
+                files.append(file)
+
+        page_token = response.get('nextPageToken', None)
+        if page_token is None:
+            break
+
+    return files
+
+def download_file_content(service, file_id):
+    file = service.files().get_media(fileId=file_id).execute()
+    return file.decode("utf-8")
+
 
 # ✅ Enter送信処理（テキスト確定時）
 def on_enter():
@@ -78,7 +119,7 @@ def ask_and_display_answer(user_query):
     st.session_state.query = user_query
     st.session_state.is_generating = True
     with st.spinner(f"⏳ 「{user_query}」に回答中... 少々お待ちください"):
-        yamaguchi_context = load_yamaguchi_data()
+        yamaguchi_context = load_gikai_data()
         system_prompt = f"{load_prompt()}\n\n{yamaguchi_context}"
         try:
             response = client.chat.completions.create(
