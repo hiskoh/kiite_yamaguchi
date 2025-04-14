@@ -57,7 +57,7 @@ def get_gspread_client():
 
 def log_to_gsheet(question, answer):
     client_gs = get_gspread_client()
-    sheet = client_gs.open_by_key(st.secrets["GOOGLE_LOG_SHEET_ID"]).worksheet("logs")
+    sheet = client_gs.open_by_key(st.secrets["GOOGLE_GIKAI_LOG_SHEET_ID"]).worksheet("logs")
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     sheet.append_row([now, question, answer])
 
