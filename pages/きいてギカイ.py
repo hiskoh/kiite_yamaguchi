@@ -60,7 +60,7 @@ def get_gspread_client():
 
 def log_to_gsheet(question, answer):
     client_gs = get_gspread_client()
-    sheet = client_gs.open_by_key(st.secrets["GOOGLE_GIKAI_LOG_SHEET_ID"]).worksheet("logs")
+    sheet = client_gs.open_by_key(st.secrets["kiite-gikai"]["GOOGLE_GIKAI_LOG_SHEET_ID"]).worksheet("logs")
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     sheet.append_row([now, question, answer])
 
@@ -72,7 +72,7 @@ def load_gikai_data():
     )
     service = build("drive", "v3", credentials=creds)
 
-    folder_id = st.secrets["GOOGLE_DRIVE_FOLDER_ID"]
+    folder_id = st.secrets["kiite-gikai"]["GOOGLE_DRIVE_FOLDER_ID"]
     files = list_txt_files_recursive(service, folder_id)
 
     combined_text = ""
@@ -122,8 +122,8 @@ def ask_and_display_answer(user_query):
     st.session_state.query = user_query
     st.session_state.is_generating = True
     with st.spinner(f"⏳ 「{user_query}」に回答中... 少々お待ちください"):
-        yamaguchi_context = load_gikai_data()
-        system_prompt = f"{load_prompt()}\n\n{yamaguchi_context}"
+        gikai_context = load_gikai_data()
+        system_prompt = f"{load_prompt()}\n\n{gikai_context}"
         try:
             response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
