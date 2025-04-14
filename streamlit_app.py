@@ -8,6 +8,9 @@ import random
 # ✅ ページ設定
 import streamlit as st
 
+st.write("📋 現在読み取れている secrets キー一覧:")
+st.write(list(st.secrets.keys()))
+
 st.set_page_config(page_title="きいてみらい山口", layout="wide")
 
 # ✅ セッションステートの初期化
