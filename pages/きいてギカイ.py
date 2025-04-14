@@ -9,9 +9,6 @@ import random
 # ✅ ページ設定
 import streamlit as st
 
-st.write("GOOGLE_DRIVE_FOLDER_ID:", st.secrets.get("GOOGLE_DRIVE_FOLDER_ID", "📛 見つかりません"))
-
-
 st.set_page_config(page_title="きいてギカイやまぐち（β）", layout="wide", page_icon="📜")
 
 # ✅ セッションステートの初期化
