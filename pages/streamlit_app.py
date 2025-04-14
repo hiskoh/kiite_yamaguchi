@@ -6,7 +6,11 @@ from datetime import datetime
 import random
 
 # ✅ ページ設定
-st.set_page_config(page_title="きいてみらい山口", page_icon="🌞")
+import streamlit as st
+
+st.set_page_config(page_title="きいてみらい山口", layout="wide")
+st.title("きいてみらい山口")
+st.write("こちらは暮らしや未来のギモンに答えるモードです。")
 
 # ✅ セッションステートの初期化
 for key in ["agreed", "query", "send_now", "last_answer", "is_generating", "input", "input_value", "suggestions_sampled"]:
