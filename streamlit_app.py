@@ -8,9 +8,6 @@ import random
 # ✅ ページ設定
 import streamlit as st
 
-st.write("📋 現在読み取れている secrets キー一覧:")
-st.write(list(st.secrets.keys()))
-
 st.set_page_config(page_title="きいてみらい山口", layout="wide")
 
 # ✅ セッションステートの初期化
@@ -60,13 +57,13 @@ def get_gspread_client():
 
 def log_to_gsheet(question, answer):
     client_gs = get_gspread_client()
-    sheet = client_gs.open_by_key(st.secrets["GOOGLE_LOG_SHEET_ID"]).worksheet("logs")
+    sheet = client_gs.open_by_key(st.secrets["kiite-city"]["GOOGLE_LOG_SHEET_ID"]).worksheet("logs")
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     sheet.append_row([now, question, answer])
 
-def load_yamaguchi_data():
+def load_city_data():
     client_gs = get_gspread_client()
-    sheet = client_gs.open_by_key(st.secrets["GOOGLE_DATA_SHEET_ID"]).worksheet("data")
+    sheet = client_gs.open_by_key(st.secrets["kiite-city"]["GOOGLE_DATA_SHEET_ID"]).worksheet("data")
     rows = sheet.get_all_records()
     combined_info = ""
     for row in rows:
@@ -82,8 +79,8 @@ def ask_and_display_answer(user_query):
     st.session_state.query = user_query
     st.session_state.is_generating = True
     with st.spinner(f"⏳ 「{user_query}」に回答中... 少々お待ちください"):
-        yamaguchi_context = load_yamaguchi_data()
-        system_prompt = f"{load_prompt()}\n\n{yamaguchi_context}"
+        city_context = load_city_data()
+        system_prompt = f"{load_prompt()}\n\n{city_context}"
         try:
             response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
