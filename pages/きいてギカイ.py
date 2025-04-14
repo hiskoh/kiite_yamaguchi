@@ -9,7 +9,7 @@ import random
 # ✅ ページ設定
 import streamlit as st
 
-folder_id = st.secrets["GOOGLE_DRIVE_FOLDER_ID"]
+folder_id = st.secrets["kiite-gikai"]["GOOGLE_DRIVE_FOLDER_ID"]
 st.write("🔍 Using folder ID:", folder_id)
 
 creds = Credentials.from_service_account_info(
