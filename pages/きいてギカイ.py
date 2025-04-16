@@ -248,9 +248,14 @@ for i, s in enumerate(st.session_state.suggestions_sampled):
     if cols[i].button(f" {s}", key=f"sugg_{s}"):
         st.session_state.input_value = s
         st.session_state.query = s
-        st.session_state.send_now = False   # ← 強制的に送信を止める
-        search_faiss_and_respond(s,5)           # 即時回答（UX重視）
-        st.rerun()                          # 再描画して検索窓に反映
+        st.session_state.send_now = False
+        st.session_state.is_generating = True
+        with st.spinner(f"⏳ 「{s}」に回答中... 少々お待ちください"):
+            results = search_faiss_and_respond(s, 5)
+            st.session_state.last_answer = results["summary"]
+            st.session_state.last_matches = results["matches"]
+        st.session_state.is_generating = False
+        st.rerun()
 
 # --- 送信処理（Enter or サジェスト選択時） ---
 if st.session_state.input and st.session_state.send_now:
