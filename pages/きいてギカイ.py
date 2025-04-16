@@ -283,7 +283,6 @@ elif st.session_state.last_answer:
             with st.expander(f"{i}. {m['speaker_role']} {m['speaker']}（{m['source_file']}）"):
                 st.markdown(m["text"])
 
-st.write("マッチ数:", len(top_matches))
 # --- フッター 
 st.divider() 
 
