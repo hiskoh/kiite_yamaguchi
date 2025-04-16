@@ -275,8 +275,9 @@ if st.session_state.is_generating:
     st.info("⏳ 回答中... 少々お待ちください")
 elif st.session_state.last_answer:
     st.success(st.session_state.last_answer)
-    #原文表示
-    if "last_matches" in st.session_state and st.session_state.last_matches:
+    
+    # --- 原文チャンク表示（上位類似）
+    if st.session_state.last_matches:
         st.markdown("#### 🧾 関連する議事録の抜粋")
         for i, m in enumerate(st.session_state.last_matches, start=1):
             with st.expander(f"{i}. {m['speaker_role']} {m['speaker']}（{m['source_file']}）"):
