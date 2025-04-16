@@ -26,7 +26,7 @@ for key in ["agreed", "query", "send_now", "last_answer", "is_generating", "inpu
 
 # ✅ プロンプト読み込み関数
 def load_prompt():
-    with open("prompts/system_prompt.txt", "r", encoding="utf-8") as f:
+    with open("prompts/gikai_prompt.txt", "r", encoding="utf-8") as f:
         return f.read()
 
 # ✅ 同意画面
@@ -193,10 +193,7 @@ def search_faiss_and_respond(query, top_k=5):
     ])
 
     # ✅ GPTによる要約回答
-    prompt = f"""以下は議会での発言記録の一部です。
-これを参考にして「{query}」という質問に市議会がどう向き合っているか要約してください。
-
-{context}
+    system_prompt = f"{load_prompt()}\n\n{context}"
 """
     try:
         response = client.chat.completions.create(
