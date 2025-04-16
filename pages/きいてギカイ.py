@@ -6,7 +6,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
 from datetime import datetime
-import random, json, io, os, faiss, tempfile
+import random, json, io, faiss, tempfile
 import numpy as np
 from googleapiclient.http import MediaIoBaseDownload
 # ✅ ページ設定
