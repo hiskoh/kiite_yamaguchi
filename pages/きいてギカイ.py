@@ -6,7 +6,9 @@ from oauth2client.service_account import ServiceAccountCredentials
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
 from datetime import datetime
-import random
+import random, json, io, os, faiss, tempfile
+import numpy as np
+from googleapiclient.http import MediaIoBaseDownload
 # ✅ ページ設定
 import streamlit as st
 
@@ -118,27 +120,101 @@ def on_enter():
     if st.session_state.input.strip():
         st.session_state.send_now = True
 
-def ask_and_display_answer(user_query):
-    st.session_state.query = user_query
-    st.session_state.is_generating = True
-    with st.spinner(f"⏳ 「{user_query}」に回答中... 少々お待ちください"):
-        gikai_context = load_gikai_data()
-        system_prompt = f"{load_prompt()}\n\n{gikai_context}"
-        try:
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_query}
-                ]
-            )
-            answer = response.choices[0].message.content.strip()
-        except Exception as e:
-            answer = f"⚠️ エラーが発生しました：{e}"
+# 議事録データにアクセスして関連発言を出力
+def search_faiss_and_respond(query, top_k=5):
+    # 議事録データのフォルダID
+    gdrive_folder_id = st.secrets["kiite-gikai"]["GOOGLE_GIKAI_DATA_ID"]
+    
+    # 🔐 Google Drive認証
+    creds = Credentials.from_service_account_info(
+        st.secrets["gsheets_service_account"], scopes=["https://www.googleapis.com/auth/drive"]
+    )
+    service = build("drive", "v3", credentials=creds)
 
-    log_to_gsheet(user_query, answer)
-    st.session_state.last_answer = answer
-    st.session_state.is_generating = False
+    # 🔽 Driveから .index / .meta.json をダウンロード
+    def list_index_meta_files(folder_id):
+        query = f"'{folder_id}' in parents and trashed = false"
+        results = service.files().list(q=query, fields="files(id, name)").execute()
+        files = results.get("files", [])
+        return [f for f in files if f["name"].endswith(('.index', '.meta.json'))]
+
+    def download_file_content(file_id):
+        request = service.files().get_media(fileId=file_id)
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
+        fh.seek(0)
+        return fh.read()
+
+    index_files = list_index_meta_files(gdrive_folder_id)
+    file_pairs = {}
+    for f in index_files:
+        base = f["name"].rsplit(".", 1)[0]
+        file_pairs.setdefault(base, {})
+        if f["name"].endswith(".index"):
+            file_pairs[base]["index_id"] = f["id"]
+        elif f["name"].endswith(".meta.json"):
+            file_pairs[base]["meta_id"] = f["id"]
+
+    # ✅ OpenAIインスタンス
+    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+    embedding = client.embeddings.create(model="text-embedding-ada-002", input=[query]).data[0].embedding
+    query_vec = np.array(embedding).astype("float32").reshape(1, -1)
+
+    matches = []
+    for base, pair in file_pairs.items():
+        if "index_id" not in pair or "meta_id" not in pair:
+            continue
+        # temp保存してロード
+        with tempfile.NamedTemporaryFile(delete=False) as index_file:
+            index_file.write(download_file_content(pair["index_id"]))
+            index_path = index_file.name
+        with tempfile.NamedTemporaryFile(delete=False, mode="w+b") as meta_file:
+            meta_file.write(download_file_content(pair["meta_id"]))
+            meta_path = meta_file.name
+
+        index = faiss.read_index(index_path)
+        D, I = index.search(query_vec, top_k)
+        with open(meta_path, "r", encoding="utf-8") as f:
+            meta = json.load(f)
+        for i, dist in zip(I[0], D[0]):
+            if i < len(meta):
+                m = meta[i]
+                m["score"] = float(dist)
+                matches.append(m)
+
+    # スコア順に上位抽出
+    top_matches = sorted(matches, key=lambda x: x["score"])[:top_k]
+    context = "\n\n".join([
+        f"{m['speaker_role']} {m['speaker']}（{m['source_file']}）\n{m['text']}"
+        for m in top_matches
+    ])
+
+    # ✅ GPTによる要約回答
+    prompt = f"""以下は議会での発言記録の一部です。
+これを参考にして「{query}」という質問に市議会がどう向き合っているか要約してください。
+
+{context}
+"""
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "あなたは議会の発言を要約するアシスタントです。正確性を重視してください。"},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        summary = response.choices[0].message.content.strip()
+    except Exception as e:
+        summary = f"⚠️ GPTによる要約に失敗しました：{e}"
+
+    return {
+        "matches": top_matches,
+        "summary": summary
+    }
+
 
 # 🔸 UI構成
 st.title("📜 きいてギカイやまぐち（β）")
@@ -173,22 +249,28 @@ for i, s in enumerate(st.session_state.suggestions_sampled):
         st.session_state.input_value = s
         st.session_state.query = s
         st.session_state.send_now = False   # ← 強制的に送信を止める
-        ask_and_display_answer(s)           # 即時回答（UX重視）
+        search_faiss_and_respond(s,5)           # 即時回答（UX重視）
         st.rerun()                          # 再描画して検索窓に反映
 
 # --- 送信処理（Enter or サジェスト選択時） ---
 if st.session_state.input and st.session_state.send_now:
     st.session_state.send_now = False
-    ask_and_display_answer(st.session_state.input)
+    search_faiss_and_respond(st.session_state.input,5)
     st.session_state.input_value = ""
 
 # --- 回答欄 ---
-st.markdown("#### 💡回答はこちら")
+st.markdown("#### 💡議会の発言にもとづく要約")
 if st.session_state.is_generating:
     st.info("⏳ 回答中... 少々お待ちください")
 elif st.session_state.last_answer:
     st.success(st.session_state.last_answer)
 
+# --- 原文チャンク表示（上位類似）
+if "last_matches" in st.session_state and st.session_state.last_matches:
+    st.markdown("#### 🧾 関連する議事録の抜粋")
+    for m in st.session_state.last_matches:
+        with st.expander(f"{m['speaker_role']} {m['speaker']}（{m['source_file']}）"):
+            st.markdown(m["text"])
 
 # --- フッター 
 st.divider() 
