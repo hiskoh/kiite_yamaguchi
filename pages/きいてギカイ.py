@@ -255,8 +255,14 @@ for i, s in enumerate(st.session_state.suggestions_sampled):
 # --- 送信処理（Enter or サジェスト選択時） ---
 if st.session_state.input and st.session_state.send_now:
     st.session_state.send_now = False
-    search_faiss_and_respond(st.session_state.input,5)
+    st.session_state.is_generating = True
+    with st.spinner(f"⏳ 「{st.session_state.input}」に回答中... 少々お待ちください"):
+        results = search_faiss_and_respond(st.session_state.input, 5)
+        st.session_state.last_answer = results["summary"]
+        st.session_state.last_matches = results["matches"]
     st.session_state.input_value = ""
+    st.session_state.is_generating = False
+
 
 # --- 回答欄 ---
 st.markdown("#### 💡議会の発言にもとづく要約")
