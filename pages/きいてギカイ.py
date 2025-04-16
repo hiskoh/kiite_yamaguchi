@@ -275,7 +275,6 @@ if st.session_state.is_generating:
     st.info("⏳ 回答中... 少々お待ちください")
 elif st.session_state.last_answer:
     st.success(st.session_state.last_answer)
-st.write("マッチ数:", len(top_matches))
     
     # --- 原文チャンク表示（上位類似）
     if st.session_state.last_matches:
@@ -284,6 +283,7 @@ st.write("マッチ数:", len(top_matches))
             with st.expander(f"{i}. {m['speaker_role']} {m['speaker']}（{m['source_file']}）"):
                 st.markdown(m["text"])
 
+st.write("マッチ数:", len(top_matches))
 # --- フッター 
 st.divider() 
 
