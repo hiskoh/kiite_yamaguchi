@@ -153,7 +153,6 @@ def search_faiss_and_respond(query, top_k=5):
         return fh.read()
 
     index_files = list_index_meta_files(gdrive_folder_id)
-    st.write("📁 見つかったFAISSファイル一覧:", [f["name"] for f in index_files])
 
     # 📦 ファイルをペア化
     file_pairs = {}
@@ -169,7 +168,6 @@ def search_faiss_and_respond(query, top_k=5):
     res = client.embeddings.create(model="text-embedding-ada-002", input=[query])
     query_embedding = res.data[0].embedding
     query_vec = np.array(query_embedding, dtype="float32").reshape(1, -1)
-    st.write("📐 クエリベクトル次元:", query_vec.shape[1])
 
     matches = []
 
@@ -188,7 +186,6 @@ def search_faiss_and_respond(query, top_k=5):
             meta_path = meta_file.name
 
         index = faiss.read_index(index_path)
-        st.write(f"📊 ベクトル数: {index.ntotal}, 次元: {index.d}")
 
         if index.ntotal == 0:
             st.warning("⚠️ indexが空です。スキップします")
@@ -249,7 +246,6 @@ st.title("📜 きいてギカイやまぐち（β）")
 # --- キャラクターとサジェスト ---
 #st.image("character.gif", width=100)
 
-st.write("") 
 
 # --- チャット欄（送信ボタンなし・Enter送信） ---
 st.markdown("#### 💬 質問してみよう")
