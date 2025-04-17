@@ -150,11 +150,6 @@ def search_faiss_and_respond(query, top_k=5):
         return fh.read()
 
     index_files = list_index_meta_files(gdrive_folder_id)
-    st.write(f"🔢 {base} のベクトル数: {index.ntotal}")
-    st.write("📁 見つかったファイル一覧：", index_files)  # ← ここで確認できる
-    
-　　st.stop()  #
-
     
     file_pairs = {}
     for f in index_files:
@@ -166,10 +161,8 @@ def search_faiss_and_respond(query, top_k=5):
             file_pairs[base]["meta_id"] = f["id"]
 
     # クエリベクトル化
-    query_embedding = client.embeddings.create(
-        model="text-embedding-ada-002",
-        input=[query]
-    ).data[0].embedding
+    res = client.embeddings.create(model="text-embedding-ada-002", input=[query])
+    query_embedding = res.data[0].embedding
     query_vec = np.array(query_embedding, dtype="float32").reshape(1, -1)
 
     matches = []
@@ -186,14 +179,14 @@ def search_faiss_and_respond(query, top_k=5):
 
         index = faiss.read_index(index_path)
 
-        # インデックスが空ならスキップ
         if index.ntotal == 0:
             continue
 
-        # ベクトル次元のチェック
         if index.d != query_vec.shape[1]:
             st.warning(f"❗ インデックス {base} の次元数が一致しません")
             continue
+
+        st.write(f"🔢 {base} のベクトル数: {index.ntotal}")
 
         D, I = index.search(query_vec, top_k)
         with open(meta_path, "r", encoding="utf-8") as f:
@@ -206,7 +199,7 @@ def search_faiss_and_respond(query, top_k=5):
             m["score"] = float(dist)
             m["source_index"] = base
             matches.append(m)
-
+            
     if not matches:
         return {
             "matches": [],
