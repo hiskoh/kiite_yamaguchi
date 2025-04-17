@@ -172,8 +172,6 @@ def search_faiss_and_respond(query, top_k=5):
     matches = []
 
     for base, pair in file_pairs.items():
-        st.markdown(f"### 📂 処理中ファイル: `{base}`")
-
         if "index_id" not in pair or "meta_id" not in pair:
             st.warning("⚠️ index/meta ペア不完全、スキップ")
             continue
