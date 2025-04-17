@@ -159,15 +159,8 @@ if not index_files:
 
     index_files = list_index_meta_files(gdrive_folder_id)
 
-        # ✅ ← ここに入れる
+    # ✅ ← ここに入れる
     st.write("📁 見つかったファイル一覧：", index_files)
-
-    if not index_files:
-        st.error("🚫 .index または .meta.json が指定フォルダに存在しません。")
-        return {
-            "matches": [],
-            "summary": "⚠️ インデックスファイルが見つからなかったため検索できませんでした。"
-        }
     
     file_pairs = {}
     for f in index_files:
