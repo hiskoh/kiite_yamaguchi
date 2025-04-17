@@ -200,7 +200,7 @@ def search_faiss_and_respond(query, top_k=5):
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt}
+                {"role": "user", "content": query}
             ]
         )
         summary = response.choices[0].message.content.strip()
@@ -279,9 +279,6 @@ elif st.session_state.last_answer:
         for i, m in enumerate(st.session_state.last_matches, start=1):
             with st.expander(f"{i}. {m['speaker_role']} {m['speaker']}（{m['source_file']}）"):
                 st.markdown(m["text"])
-                
-st.write("summary:", st.session_state.last_answer)
-st.write("matches:", st.session_state.last_matches)
 
 # --- フッター 
 st.divider() 
