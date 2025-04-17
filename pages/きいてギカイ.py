@@ -124,7 +124,10 @@ def on_enter():
 
 # 議事録データにアクセスして関連発言を出力
 def search_faiss_and_respond(query, top_k=5):
-    # Setup
+    from openai import OpenAI
+    import tempfile
+
+    # 🔐 Google Drive 認証
     gdrive_folder_id = st.secrets["kiite-gikai"]["GOOGLE_GIKAI_DATA_ID"]
     creds = Credentials.from_service_account_info(
         st.secrets["gsheets_service_account"],
@@ -133,11 +136,11 @@ def search_faiss_and_respond(query, top_k=5):
     service = build("drive", "v3", credentials=creds)
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
+    # 📁 index/metaファイル取得
     def list_index_meta_files(folder_id):
         query = f"'{folder_id}' in parents and trashed = false"
         results = service.files().list(q=query, fields="files(id, name)").execute()
-        files = results.get("files", [])
-        return [f for f in files if f["name"].endswith(('.index', '.meta.json'))]
+        return [f for f in results.get("files", []) if f["name"].endswith(('.index', '.meta.json'))]
 
     def download_file_content(file_id):
         request = service.files().get_media(fileId=file_id)
@@ -150,7 +153,9 @@ def search_faiss_and_respond(query, top_k=5):
         return fh.read()
 
     index_files = list_index_meta_files(gdrive_folder_id)
-    
+    st.write("📁 見つかったFAISSファイル一覧:", [f["name"] for f in index_files])
+
+    # 📦 ファイルをペア化
     file_pairs = {}
     for f in index_files:
         base = f["name"].rsplit(".", 1)[0]
@@ -160,14 +165,19 @@ def search_faiss_and_respond(query, top_k=5):
         elif f["name"].endswith(".meta.json"):
             file_pairs[base]["meta_id"] = f["id"]
 
-    # クエリベクトル化
+    # 🔎 クエリベクトル化
     res = client.embeddings.create(model="text-embedding-ada-002", input=[query])
     query_embedding = res.data[0].embedding
     query_vec = np.array(query_embedding, dtype="float32").reshape(1, -1)
+    st.write("📐 クエリベクトル次元:", query_vec.shape[1])
 
     matches = []
+
     for base, pair in file_pairs.items():
+        st.markdown(f"### 📂 処理中ファイル: `{base}`")
+
         if "index_id" not in pair or "meta_id" not in pair:
+            st.warning("⚠️ index/meta ペア不完全、スキップ")
             continue
 
         with tempfile.NamedTemporaryFile(delete=False) as index_file:
@@ -178,15 +188,15 @@ def search_faiss_and_respond(query, top_k=5):
             meta_path = meta_file.name
 
         index = faiss.read_index(index_path)
+        st.write(f"📊 ベクトル数: {index.ntotal}, 次元: {index.d}")
 
         if index.ntotal == 0:
+            st.warning("⚠️ indexが空です。スキップします")
             continue
 
         if index.d != query_vec.shape[1]:
-            st.warning(f"❗ インデックス {base} の次元数が一致しません")
+            st.warning(f"⚠️ 次元不一致: index.d = {index.d}, query = {query_vec.shape[1]}")
             continue
-
-        st.write(f"🔢 {base} のベクトル数: {index.ntotal}")
 
         D, I = index.search(query_vec, top_k)
         with open(meta_path, "r", encoding="utf-8") as f:
@@ -199,7 +209,7 @@ def search_faiss_and_respond(query, top_k=5):
             m["score"] = float(dist)
             m["source_index"] = base
             matches.append(m)
-            
+
     if not matches:
         return {
             "matches": [],
@@ -208,13 +218,13 @@ def search_faiss_and_respond(query, top_k=5):
 
     top_matches = sorted(matches, key=lambda x: x["score"])[:top_k]
     context = "\n\n".join([
-        f"{m['speaker_role']} {m['speaker']}（{m['source_file']}）\n{m['text']}"
+        f"{m.get('speaker_role', '')} {m.get('speaker', '')}（{m.get('source_file', '')}）\n{m.get('text', '')}"
         for m in top_matches
     ])
 
-    # GPTに聞く
-    system_prompt = f"{load_prompt()}\n\n{context}"
+    # 💬 GPTで要約
     try:
+        system_prompt = f"{load_prompt()}\n\n{context}"
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
