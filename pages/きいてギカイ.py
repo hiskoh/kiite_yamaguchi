@@ -280,12 +280,8 @@ elif st.session_state.last_answer:
             with st.expander(f"{i}. {m['speaker_role']} {m['speaker']}（{m['source_file']}）"):
                 st.markdown(m["text"])
                 
-st.markdown("#### 🧾 関連する議事録の抜粋")
-if "last_matches" in st.session_state:
-    st.write("件数:", len(st.session_state.last_matches))
-    for i, m in enumerate(st.session_state.last_matches, start=1):
-        with st.expander(f"{i}. {m['speaker_role']} {m['speaker']}（{m['source_file']}）"):
-            st.markdown(m["text"])
+st.write("summary:", st.session_state.last_answer)
+st.write("matches:", st.session_state.last_matches)
 
 # --- フッター 
 st.divider() 
