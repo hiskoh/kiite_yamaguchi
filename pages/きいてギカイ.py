@@ -194,7 +194,7 @@ def search_faiss_and_respond(query, top_k=5):
 
     # ✅ GPTによる要約回答
     system_prompt = f"{load_prompt()}\n\n{context}"
-"""
+
     try:
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
