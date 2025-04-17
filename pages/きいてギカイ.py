@@ -199,7 +199,7 @@ def search_faiss_and_respond(query, top_k=5):
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "あなたは議会の発言を要約するアシスタントです。正確性を重視してください。"},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt}
             ]
         )
