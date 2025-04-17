@@ -150,8 +150,10 @@ def search_faiss_and_respond(query, top_k=5):
         return fh.read()
 
     index_files = list_index_meta_files(gdrive_folder_id)
+    st.write(f"🔢 {base} のベクトル数: {index.ntotal}")
     st.write("📁 見つかったファイル一覧：", index_files)  # ← ここで確認できる
-    st.stop()  #
+    
+　　st.stop()  #
 
     
     file_pairs = {}
