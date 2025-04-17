@@ -158,12 +158,12 @@ def search_faiss_and_respond(query, top_k=5):
     # 📦 ファイルをペア化
     file_pairs = {}
     for f in index_files:
-        base = f["name"].rsplit(".", 1)[0]
-        file_pairs.setdefault(base, {})
-        if f["name"].endswith(".index"):
-            file_pairs[base]["index_id"] = f["id"]
-        elif f["name"].endswith(".meta.json"):
-            file_pairs[base]["meta_id"] = f["id"]
+        if f["name"].endswith(".meta.json"):
+            base = f["name"].removesuffix(".meta.json")
+            file_pairs.setdefault(base, {})["meta_id"] = f["id"]
+        elif f["name"].endswith(".index"):
+            base = f["name"].removesuffix(".index")
+            file_pairs.setdefault(base, {})["index_id"] = f["id"]
 
     # 🔎 クエリベクトル化
     res = client.embeddings.create(model="text-embedding-ada-002", input=[query])
