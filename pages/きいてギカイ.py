@@ -124,16 +124,20 @@ def on_enter():
 
 # 議事録データにアクセスして関連発言を出力
 def search_faiss_and_respond(query, top_k=5):
-    # 議事録データのフォルダID
+    from googleapiclient.discovery import build
+    from googleapiclient.http import MediaIoBaseDownload
+    import tempfile, json, io, numpy as np
+    import faiss
+
+    # Setup
     gdrive_folder_id = st.secrets["kiite-gikai"]["GOOGLE_GIKAI_DATA_ID"]
-    
-    # 🔐 Google Drive認証
     creds = Credentials.from_service_account_info(
-        st.secrets["gsheets_service_account"], scopes=["https://www.googleapis.com/auth/drive"]
+        st.secrets["gsheets_service_account"],
+        scopes=["https://www.googleapis.com/auth/drive"]
     )
     service = build("drive", "v3", credentials=creds)
+    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-    # 🔽 Driveから .index / .meta.json をダウンロード
     def list_index_meta_files(folder_id):
         query = f"'{folder_id}' in parents and trashed = false"
         results = service.files().list(q=query, fields="files(id, name)").execute()
@@ -160,16 +164,18 @@ def search_faiss_and_respond(query, top_k=5):
         elif f["name"].endswith(".meta.json"):
             file_pairs[base]["meta_id"] = f["id"]
 
-    # ✅ OpenAIインスタンス
-    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-    embedding = client.embeddings.create(model="text-embedding-ada-002", input=[query]).data[0].embedding
-    query_vec = np.array(embedding).astype("float32").reshape(1, -1)
+    # クエリベクトル化
+    query_embedding = client.embeddings.create(
+        model="text-embedding-ada-002",
+        input=[query]
+    ).data[0].embedding
+    query_vec = np.array(query_embedding, dtype="float32").reshape(1, -1)
 
     matches = []
     for base, pair in file_pairs.items():
         if "index_id" not in pair or "meta_id" not in pair:
             continue
-        # temp保存してロード
+
         with tempfile.NamedTemporaryFile(delete=False) as index_file:
             index_file.write(download_file_content(pair["index_id"]))
             index_path = index_file.name
@@ -178,25 +184,42 @@ def search_faiss_and_respond(query, top_k=5):
             meta_path = meta_file.name
 
         index = faiss.read_index(index_path)
+
+        # インデックスが空ならスキップ
+        if index.ntotal == 0:
+            continue
+
+        # ベクトル次元のチェック
+        if index.d != query_vec.shape[1]:
+            st.warning(f"❗ インデックス {base} の次元数が一致しません")
+            continue
+
         D, I = index.search(query_vec, top_k)
         with open(meta_path, "r", encoding="utf-8") as f:
             meta = json.load(f)
-        for i, dist in zip(I[0], D[0]):
-            if i != -1 and i < len(meta):
-                m = meta[i]
-                m["score"] = float(dist)
-                matches.append(m)
 
-    # スコア順に上位抽出
+        for i, dist in zip(I[0], D[0]):
+            if i == -1 or i >= len(meta):
+                continue
+            m = meta[i]
+            m["score"] = float(dist)
+            m["source_index"] = base
+            matches.append(m)
+
+    if not matches:
+        return {
+            "matches": [],
+            "summary": "🔍 関連する議事録の抜粋は見つかりませんでした。もう少し長めの質問を入力してみてください。"
+        }
+
     top_matches = sorted(matches, key=lambda x: x["score"])[:top_k]
     context = "\n\n".join([
         f"{m['speaker_role']} {m['speaker']}（{m['source_file']}）\n{m['text']}"
         for m in top_matches
     ])
 
-    # ✅ GPTによる要約回答
+    # GPTに聞く
     system_prompt = f"{load_prompt()}\n\n{context}"
-
     try:
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
@@ -213,6 +236,7 @@ def search_faiss_and_respond(query, top_k=5):
         "matches": top_matches,
         "summary": summary
     }
+
 
 
 # 🔸 UI構成
