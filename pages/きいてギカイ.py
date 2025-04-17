@@ -124,9 +124,6 @@ def on_enter():
 
 # 議事録データにアクセスして関連発言を出力
 def search_faiss_and_respond(query, top_k=5):
-    # Driveから .index / .meta.json を取得
-    index_files = list_index_meta_files(gdrive_folder_id)
-    st.write("📁 見つかったファイル一覧：", index_files)
 
 if not index_files:
     st.error("🚫 .index または .meta.json が指定フォルダ内に見つかりませんでした。")
@@ -161,6 +158,17 @@ if not index_files:
         return fh.read()
 
     index_files = list_index_meta_files(gdrive_folder_id)
+
+        # ✅ ← ここに入れる
+    st.write("📁 見つかったファイル一覧：", index_files)
+
+    if not index_files:
+        st.error("🚫 .index または .meta.json が指定フォルダに存在しません。")
+        return {
+            "matches": [],
+            "summary": "⚠️ インデックスファイルが見つからなかったため検索できませんでした。"
+        }
+    
     file_pairs = {}
     for f in index_files:
         base = f["name"].rsplit(".", 1)[0]
