@@ -158,9 +158,6 @@ if not index_files:
         return fh.read()
 
     index_files = list_index_meta_files(gdrive_folder_id)
-
-    # ✅ ← ここに入れる
-    st.write("📁 見つかったファイル一覧：", index_files)
     
     file_pairs = {}
     for f in index_files:
