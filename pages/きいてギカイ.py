@@ -141,6 +141,7 @@ def search_faiss_and_respond(query, top_k=5):
     def list_index_meta_files(folder_id):
         query = f"'{folder_id}' in parents and trashed = false"
         results = service.files().list(q=query, fields="files(id, name)").execute()
+        st.write("📂 index/meta ファイル一覧:", results)
         files = results.get("files", [])
         return [f for f in files if f["name"].endswith(('.index', '.meta.json'))]
 
