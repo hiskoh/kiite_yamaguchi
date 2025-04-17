@@ -124,6 +124,12 @@ def on_enter():
 
 # 議事録データにアクセスして関連発言を出力
 def search_faiss_and_respond(query, top_k=5):
+    # Driveから .index / .meta.json を取得
+    index_files = list_index_meta_files(gdrive_folder_id)
+    st.write("📁 見つかったファイル一覧：", index_files)
+
+if not index_files:
+    st.error("🚫 .index または .meta.json が指定フォルダ内に見つかりませんでした。")
     from googleapiclient.discovery import build
     from googleapiclient.http import MediaIoBaseDownload
     import tempfile, json, io, numpy as np
@@ -141,7 +147,6 @@ def search_faiss_and_respond(query, top_k=5):
     def list_index_meta_files(folder_id):
         query = f"'{folder_id}' in parents and trashed = false"
         results = service.files().list(q=query, fields="files(id, name)").execute()
-        st.write("📂 index/meta ファイル一覧:", results)
         files = results.get("files", [])
         return [f for f in files if f["name"].endswith(('.index', '.meta.json'))]
 
