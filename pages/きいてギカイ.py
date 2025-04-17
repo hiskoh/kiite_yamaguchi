@@ -297,9 +297,6 @@ if st.session_state.is_generating:
 elif st.session_state.last_answer:
     st.success(st.session_state.last_answer)
     
-    st.write("🔍 検索結果件数:", len(st.session_state.last_matches))
-    st.write(st.session_state.last_matches)
-    
     # --- 原文チャンク表示（上位類似）
     if st.session_state.last_matches:
         st.markdown("#### 🧾 関連する議事録の抜粋")
