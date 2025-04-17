@@ -15,11 +15,13 @@ import streamlit as st
 st.set_page_config(page_title="きいてギカイやまぐち（β）", layout="wide", page_icon="📜")
 
 # ✅ セッションステートの初期化
-for key in ["agreed", "query", "send_now", "last_answer", "is_generating", "input", "input_value", "suggestions_sampled"]:
+for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_generating", "input", "input_value", "suggestions_sampled"]:
     if key not in st.session_state:
         if key in ["query", "last_answer", "input", "input_value"]:
             st.session_state[key] = ""
         elif key == "suggestions_sampled":
+            st.session_state[key] = []
+        elif key == "last_matches":
             st.session_state[key] = []
         else:
             st.session_state[key] = False
@@ -180,7 +182,7 @@ def search_faiss_and_respond(query, top_k=5):
         with open(meta_path, "r", encoding="utf-8") as f:
             meta = json.load(f)
         for i, dist in zip(I[0], D[0]):
-            if i < len(meta):
+            if i != -1 and i < len(meta):
                 m = meta[i]
                 m["score"] = float(dist)
                 matches.append(m)
@@ -277,8 +279,11 @@ elif st.session_state.last_answer:
     if st.session_state.last_matches:
         st.markdown("#### 🧾 関連する議事録の抜粋")
         for i, m in enumerate(st.session_state.last_matches, start=1):
-            with st.expander(f"{i}. {m['speaker_role']} {m['speaker']}（{m['source_file']}）"):
-                st.markdown(m["text"])
+            with st.expander(f"{i}. {m.get('speaker_role', '')} {m.get('speaker', '')}（{m.get('source_file', '')}）"):
+                st.markdown(m.get("text", "（本文が見つかりませんでした）"))
+    else:
+        st.info("関連する議事録の抜粋は見つかりませんでした。")
+
 
 # --- フッター 
 st.divider() 
