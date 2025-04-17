@@ -151,6 +151,7 @@ def search_faiss_and_respond(query, top_k=5):
 
     index_files = list_index_meta_files(gdrive_folder_id)
     st.write("📁 見つかったファイル一覧：", index_files)  # ← ここで確認できる
+    st.stop()  #
 
     
     file_pairs = {}
