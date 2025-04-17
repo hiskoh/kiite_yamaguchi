@@ -124,14 +124,6 @@ def on_enter():
 
 # 議事録データにアクセスして関連発言を出力
 def search_faiss_and_respond(query, top_k=5):
-
-if not index_files:
-    st.error("🚫 .index または .meta.json が指定フォルダ内に見つかりませんでした。")
-    from googleapiclient.discovery import build
-    from googleapiclient.http import MediaIoBaseDownload
-    import tempfile, json, io, numpy as np
-    import faiss
-
     # Setup
     gdrive_folder_id = st.secrets["kiite-gikai"]["GOOGLE_GIKAI_DATA_ID"]
     creds = Credentials.from_service_account_info(
