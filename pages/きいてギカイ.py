@@ -231,9 +231,25 @@ def search_faiss_and_respond(query, top_k=5):
     except Exception as e:
         summary = f"⚠️ GPTによる要約に失敗しました：{e}"
 
+    # ✅ ペア単位にまとめる（Q+A）
+    pair_map = {}
+    for m in matches:
+        pid = m.get("pair_id")
+        if pid is None:
+            continue
+        pair_map.setdefault(pid, []).append(m)
+
+    # QA順に並べて整理
+    pair_matches = []
+    for pid, group in pair_map.items():
+        q = [x for x in group if x.get("qa_role") == "Q"]
+        a = [x for x in group if x.get("qa_role") == "A"]
+        pair_matches.append({"pair_id": pid, "Q": q, "A": a})
+
     return {
         "matches": top_matches,
-        "summary": summary
+        "summary": summary,
+        "qa_pairs": pair_matches
     }
 
 
@@ -274,7 +290,8 @@ for i, s in enumerate(st.session_state.suggestions_sampled):
         with st.spinner(f"⏳ 「{s}」に回答中... 少々お待ちください"):
             results = search_faiss_and_respond(s, 5)
             st.session_state.last_answer = results["summary"]
-            st.session_state.last_matches = results["matches"]
+            st.session_state.last_matches = results["matches
+            st.session_state.last_matches = results["qa_pairs"]
         st.session_state.is_generating = False
         st.rerun()
 
@@ -286,6 +303,7 @@ if st.session_state.input and st.session_state.send_now:
         results = search_faiss_and_respond(st.session_state.input, 5)
         st.session_state.last_answer = results["summary"]
         st.session_state.last_matches = results["matches"]
+        st.session_state.last_matches = results["qa_pairs"]
     st.session_state.input_value = ""
     st.session_state.is_generating = False
 
@@ -297,15 +315,25 @@ if st.session_state.is_generating:
 elif st.session_state.last_answer:
     st.success(st.session_state.last_answer)
     
-    # --- 原文チャンク表示（上位類似）
-    if st.session_state.last_matches:
-        st.markdown("#### 🧾 関連する議事録の抜粋")
-        for i, m in enumerate(st.session_state.last_matches, start=1):
-            with st.expander(f"{i}. {m.get('speaker_role', '')} {m.get('speaker', '')}（{m.get('source_file', '')}）"):
-                st.markdown(m.get("text", "（本文が見つかりませんでした）"))
-    else:
-        st.info("関連する議事録の抜粋は見つかりませんでした。")
+    # --- 原文チャンク表示（質問＋答弁のペア表示）
+    if "qa_pairs" in st.session_state and st.session_state.qa_pairs:
+        st.markdown("#### 🧾 関連する質疑応答の出典")
 
+        for i, pair in enumerate(st.session_state.qa_pairs, start=1):
+            st.markdown(f"**{i}. 質問と答弁のセット**")
+
+            # 質問（複数分かれてる場合もある）
+            for q in pair.get("Q", []):
+                with st.expander(f"🟢【質問】{q.get('speaker_role','')} {q.get('speaker','')}（{q.get('source_file','')}）"):
+                    st.markdown(q.get("text", ""))
+
+            # 答弁
+            for a in pair.get("A", []):
+                with st.expander(f"🔵【答弁】{a.get('speaker_role','')} {a.get('speaker','')}（{a.get('source_file','')}）"):
+                    st.markdown(a.get("text", ""))
+
+    else:
+        st.info("関連する質疑応答の出典は見つかりませんでした。")
 
 # --- フッター 
 st.divider() 
