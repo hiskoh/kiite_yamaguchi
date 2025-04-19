@@ -259,6 +259,12 @@ def search_faiss_and_respond(query, top_k=5):
                 "Q": q,
                 "A": a
             })
+    # ✅ 🔽 ここに追加！
+    return {
+        "matches": top_matches,
+        "summary": summary,
+        "qa_pairs": pair_matches
+    }
 
 # 🔸 UI構成
 st.title("📜 きいてギカイやまぐち（β）")
