@@ -123,47 +123,35 @@ def on_enter():
         st.session_state.send_now = True
 
 # 類似チャンク matches から Q/A ペアを組み、片方が欠けていたら meta から補完
-def build_pair_matches(matches, meta_by_file):
-    # 🔁 ファイル単位でグルーピング
-    file_grouped = {}
-    for m in matches:
-        src = m.get("source_file")
-        if src is None:
-            continue
-        file_grouped.setdefault(src, []).append(m)
-
+def build_pair_matches(top_matches, meta_by_file):
     pair_matches = []
+    seen = set()
 
-    for src, items in file_grouped.items():
-        pair_map = {}
-        for m in items:
-            pid = m.get("pair_id")
-            if pid is None:
-                continue
-            pair_map.setdefault(pid, []).append(m)
+    for m in top_matches:
+        pid = m.get("pair_id")
+        src = m.get("source_file")
+        if pid is None or src not in meta_by_file:
+            continue
 
-        for pid, group in pair_map.items():
-            q = [x for x in group if x.get("qa_role") == "Q"]
-            a = [x for x in group if x.get("qa_role") == "A"]
+        key = (src, pid)
+        if key in seen:
+            continue
+        seen.add(key)
 
-            # 👇 Q or A が不足していれば meta から補完
-            if (not q or not a) and src in meta_by_file:
-                for m in meta_by_file[src]:
-                    if m.get("pair_id") != pid:
-                        continue
-                    if m.get("qa_role") == "Q" and not q:
-                        q.append(m)
-                    if m.get("qa_role") == "A" and not a:
-                        a.append(m)
+        # 同じファイル・同じpair_idのQ/Aチャンクのみ補完
+        candidates = [x for x in meta_by_file[src] if x.get("pair_id") == pid]
+        q = [x for x in candidates if x.get("qa_role") == "Q"]
+        a = [x for x in candidates if x.get("qa_role") == "A"]
 
-            pair_matches.append({
-                "pair_id": pid,
-                "source_file": src,
-                "Q": q,
-                "A": a
-            })
+        pair_matches.append({
+            "pair_id": pid,
+            "source_file": src,
+            "Q": q,
+            "A": a
+        })
 
     return pair_matches
+
 
 # 議事録データにアクセスして関連発言を出力
 def search_faiss_and_respond(query, top_k=5):
