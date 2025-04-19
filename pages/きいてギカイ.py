@@ -290,7 +290,7 @@ for i, s in enumerate(st.session_state.suggestions_sampled):
         with st.spinner(f"⏳ 「{s}」に回答中... 少々お待ちください"):
             results = search_faiss_and_respond(s, 5)
             st.session_state.last_answer = results["summary"]
-            st.session_state.last_matches = results["matches
+            st.session_state.last_matches = results["matches"]
             st.session_state.qa_pairs = results["qa_pairs"]
         st.session_state.is_generating = False
         st.rerun()
