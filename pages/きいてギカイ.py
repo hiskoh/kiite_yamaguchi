@@ -334,6 +334,7 @@ elif st.session_state.last_answer:
 
     else:
         st.info("関連する質疑応答の出典は見つかりませんでした。")
+st.markdown("### ✅🟢 質問と答弁の出典リスト")
 
 # --- フッター 
 st.divider() 
