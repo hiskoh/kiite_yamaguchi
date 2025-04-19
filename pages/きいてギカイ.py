@@ -170,7 +170,6 @@ def search_faiss_and_respond(query, top_k=5):
     from openai import OpenAI
     import tempfile
 
-    # 🔐 Google Drive 認証
     gdrive_folder_id = st.secrets["kiite-gikai"]["GOOGLE_GIKAI_DATA_ID"]
     creds = Credentials.from_service_account_info(
         st.secrets["gsheets_service_account"],
@@ -179,7 +178,6 @@ def search_faiss_and_respond(query, top_k=5):
     service = build("drive", "v3", credentials=creds)
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-    # 📁 index/metaファイル取得
     def list_index_meta_files(folder_id):
         query = f"'{folder_id}' in parents and trashed = false"
         results = service.files().list(q=query, fields="files(id, name)").execute()
@@ -197,7 +195,6 @@ def search_faiss_and_respond(query, top_k=5):
 
     index_files = list_index_meta_files(gdrive_folder_id)
 
-    # 📦 ファイルをペア化
     file_pairs = {}
     for f in index_files:
         if f["name"].endswith(".meta.json"):
@@ -207,73 +204,84 @@ def search_faiss_and_respond(query, top_k=5):
             base = f["name"].removesuffix(".index")
             file_pairs.setdefault(base, {})["index_id"] = f["id"]
 
-    # 🔎 クエリベクトル化
     res = client.embeddings.create(model="text-embedding-ada-002", input=[query])
     query_embedding = res.data[0].embedding
     query_vec = np.array(query_embedding, dtype="float32").reshape(1, -1)
 
     matches = []
+    meta_by_file = {}
 
     for base, pair in file_pairs.items():
         if "index_id" not in pair or "meta_id" not in pair:
-            st.warning("⚠️ index/meta ペア不完全、スキップ")
             continue
 
-        with tempfile.NamedTemporaryFile(delete=False) as index_file:
-            index_file.write(download_file_content(pair["index_id"]))
-            index_path = index_file.name
-        with tempfile.NamedTemporaryFile(delete=False, mode="w+b") as meta_file:
-            meta_file.write(download_file_content(pair["meta_id"]))
-            meta_path = meta_file.name
+        meta_content = download_file_content(pair["meta_id"])
+        meta = json.loads(meta_content)
+        for m in meta:
+            m["source_file"] = base + ".txt"
+        meta_by_file[base + ".txt"] = meta
+
+        index_data = download_file_content(pair["index_id"])
+        with tempfile.NamedTemporaryFile(delete=False) as f:
+            f.write(index_data)
+            index_path = f.name
 
         index = faiss.read_index(index_path)
-
         if index.ntotal == 0:
-            st.warning("⚠️ indexが空です。スキップします")
             continue
-
         if index.d != query_vec.shape[1]:
-            st.warning(f"⚠️ 次元不一致: index.d = {index.d}, query = {query_vec.shape[1]}")
+            st.warning(f"⚠️ 次元不一致: {base} index.d={index.d}, query.d={query_vec.shape[1]}")
             continue
 
         D, I = index.search(query_vec, top_k)
-        with open(meta_path, "r", encoding="utf-8") as f:
-            meta = json.load(f)
-
         for i, dist in zip(I[0], D[0]):
             if i == -1 or i >= len(meta):
                 continue
             m = meta[i]
             m["score"] = float(dist)
             m["source_index"] = base
+            m["source_file"] = base + ".txt"
             matches.append(m)
 
     if not matches:
         return {
             "matches": [],
-            "summary": "🔍 関連する議事録の抜粋は見つかりませんでした。もう少し長めの質問を入力してみてください。"
+            "summary": "🔍 関連する議事録の抜粋は見つかりませんでした。",
+            "qa_pairs": []
         }
 
-    # 既存の top_matches 生成直後
     top_matches = sorted(matches, key=lambda x: x["score"])[:top_k]
 
-    # ✅ 各ファイルの meta をすべて取得
-    meta_by_file = {}
-    for base, pair in file_pairs.items():
-        if "meta_id" not in pair:
+    pair_matches = []
+    seen_pairs = set()
+
+    for m in top_matches:
+        pid = m.get("pair_id")
+        src = m.get("source_file")
+        if pid is None or src not in meta_by_file:
             continue
-        meta_content = download_file_content(pair["meta_id"])
-        meta_by_file[base] = json.loads(meta_content)
-    
-    # ✅ 補完つきペア構築を呼び出し
-    pair_matches = build_pair_matches(top_matches, meta_by_file)
+
+        key = (src, pid)
+        if key in seen_pairs:
+            continue
+        seen_pairs.add(key)
+
+        candidates = [x for x in meta_by_file[src] if x.get("pair_id") == pid]
+        q = [x for x in candidates if x.get("qa_role") == "Q"]
+        a = [x for x in candidates if x.get("qa_role") == "A"]
+
+        pair_matches.append({
+            "pair_id": pid,
+            "source_file": src,
+            "Q": q,
+            "A": a
+        })
 
     context = "\n\n".join([
         f"{m.get('speaker_role', '')} {m.get('speaker', '')}（{m.get('source_file', '')}）\n{m.get('text', '')}"
         for m in top_matches
     ])
 
-    # 💬 GPTで要約
     try:
         system_prompt = f"{load_prompt()}\n\n{context}"
         response = client.chat.completions.create(
@@ -287,40 +295,12 @@ def search_faiss_and_respond(query, top_k=5):
     except Exception as e:
         summary = f"⚠️ GPTによる要約に失敗しました：{e}"
 
-    # ✅ ファイル単位に ペアをまとめる（Q+A）
-    file_grouped = {}
-    for m in matches:
-        src = m.get("source_file")
-        if src is None:
-            continue
-        file_grouped.setdefault(src, []).append(m)
-
-    pair_matches = []
-
-    for src, items in file_grouped.items():
-        # ファイル内で pair_id ごとにまとめる
-        pair_map = {}
-        for m in items:
-            pid = m.get("pair_id")
-            if pid is None:
-                continue
-            pair_map.setdefault(pid, []).append(m)
-
-        for pid, group in pair_map.items():
-            q = [x for x in group if x.get("qa_role") == "Q"]
-            a = [x for x in group if x.get("qa_role") == "A"]
-            pair_matches.append({
-                "pair_id": pid,
-                "source_file": src,
-                "Q": q,
-                "A": a
-            })
-    # ✅ 🔽 ここに追加！
     return {
         "matches": top_matches,
         "summary": summary,
         "qa_pairs": pair_matches
     }
+
 
 # 🔸 UI構成
 st.title("📜 きいてギカイやまぐち（β）")
