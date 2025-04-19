@@ -1,4 +1,31 @@
-import streamlit as st
+# ✅ ファイル単位に first split
+file_grouped = {}
+for m in matches:
+    src = m.get("source_file")
+    if src is None:
+        continue
+    file_grouped.setdefault(src, []).append(m)
+
+pair_matches = []
+
+for src, items in file_grouped.items():
+    # ファイル内で pair_id ごとにまとめる
+    pair_map = {}
+    for m in items:
+        pid = m.get("pair_id")
+        if pid is None:
+            continue
+        pair_map.setdefault(pid, []).append(m)
+
+    for pid, group in pair_map.items():
+        q = [x for x in group if x.get("qa_role") == "Q"]
+        a = [x for x in group if x.get("qa_role") == "A"]
+        pair_matches.append({
+            "pair_id": pid,
+            "source_file": src,
+            "Q": q,
+            "A": a
+        })import streamlit as st
 import chardet
 from openai import OpenAI
 import gspread
@@ -231,26 +258,34 @@ def search_faiss_and_respond(query, top_k=5):
     except Exception as e:
         summary = f"⚠️ GPTによる要約に失敗しました：{e}"
 
-    # ✅ ペア単位にまとめる（Q+A）
-    pair_map = {}
+    # ✅ ファイル単位に ペアをまとめる（Q+A）
+    file_grouped = {}
     for m in matches:
-        pid = m.get("pair_id")
-        if pid is None:
+        src = m.get("source_file")
+        if src is None:
             continue
-        pair_map.setdefault(pid, []).append(m)
+        file_grouped.setdefault(src, []).append(m)
 
-    # QA順に並べて整理
     pair_matches = []
-    for pid, group in pair_map.items():
-        q = [x for x in group if x.get("qa_role") == "Q"]
-        a = [x for x in group if x.get("qa_role") == "A"]
-        pair_matches.append({"pair_id": pid, "Q": q, "A": a})
 
-    return {
-        "matches": top_matches,
-        "summary": summary,
-        "qa_pairs": pair_matches
-    }
+    for src, items in file_grouped.items():
+        # ファイル内で pair_id ごとにまとめる
+        pair_map = {}
+        for m in items:
+            pid = m.get("pair_id")
+            if pid is None:
+                continue
+            pair_map.setdefault(pid, []).append(m)
+
+        for pid, group in pair_map.items():
+            q = [x for x in group if x.get("qa_role") == "Q"]
+            a = [x for x in group if x.get("qa_role") == "A"]
+            pair_matches.append({
+                "pair_id": pid,
+                "source_file": src,
+                "Q": q,
+                "A": a
+            })
 
 
 
