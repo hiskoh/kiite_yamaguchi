@@ -266,16 +266,20 @@ def search_faiss_and_respond(query, top_k=5):
             continue
         seen_pairs.add(key)
 
-        candidates = [x for x in meta_by_file[src] if x.get("pair_id") == pid]
-        q = [x for x in candidates if x.get("qa_role") == "Q"]
-        a = [x for x in candidates if x.get("qa_role") == "A"]
+        # ✅ 同じファイル内だけを対象に、pair_id 一致で絞る
+        meta_candidates = meta_by_file[src]
+        group = [x for x in meta_candidates if x.get("pair_id") == pid]
 
-        pair_matches.append({
-            "pair_id": pid,
-            "source_file": src,
-            "Q": q,
-            "A": a
-        })
+        q = [x for x in group if x.get("qa_role") == "Q"]
+        a = [x for x in group if x.get("qa_role") == "A"]
+
+        if q or a:
+            pair_matches.append({
+                "pair_id": pid,
+                "source_file": src,
+                "Q": q,
+                "A": a
+            })
 
     context = "\n\n".join([
         f"{m.get('speaker_role', '')} {m.get('speaker', '')}（{m.get('source_file', '')}）\n{m.get('text', '')}"
