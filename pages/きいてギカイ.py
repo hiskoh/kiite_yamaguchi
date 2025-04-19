@@ -122,6 +122,49 @@ def on_enter():
     if st.session_state.input.strip():
         st.session_state.send_now = True
 
+# 類似チャンク matches から Q/A ペアを組み、片方が欠けていたら meta から補完
+def build_pair_matches(matches, meta_by_file):
+    # 🔁 ファイル単位でグルーピング
+    file_grouped = {}
+    for m in matches:
+        src = m.get("source_file")
+        if src is None:
+            continue
+        file_grouped.setdefault(src, []).append(m)
+
+    pair_matches = []
+
+    for src, items in file_grouped.items():
+        pair_map = {}
+        for m in items:
+            pid = m.get("pair_id")
+            if pid is None:
+                continue
+            pair_map.setdefault(pid, []).append(m)
+
+        for pid, group in pair_map.items():
+            q = [x for x in group if x.get("qa_role") == "Q"]
+            a = [x for x in group if x.get("qa_role") == "A"]
+
+            # 👇 Q or A が不足していれば meta から補完
+            if (not q or not a) and src in meta_by_file:
+                for m in meta_by_file[src]:
+                    if m.get("pair_id") != pid:
+                        continue
+                    if m.get("qa_role") == "Q" and not q:
+                        q.append(m)
+                    if m.get("qa_role") == "A" and not a:
+                        a.append(m)
+
+            pair_matches.append({
+                "pair_id": pid,
+                "source_file": src,
+                "Q": q,
+                "A": a
+            })
+
+    return pair_matches
+
 # 議事録データにアクセスして関連発言を出力
 def search_faiss_and_respond(query, top_k=5):
     from openai import OpenAI
@@ -211,7 +254,20 @@ def search_faiss_and_respond(query, top_k=5):
             "summary": "🔍 関連する議事録の抜粋は見つかりませんでした。もう少し長めの質問を入力してみてください。"
         }
 
+    # 既存の top_matches 生成直後
     top_matches = sorted(matches, key=lambda x: x["score"])[:top_k]
+
+    # ✅ 各ファイルの meta をすべて取得
+    meta_by_file = {}
+    for base, pair in file_pairs.items():
+        if "meta_id" not in pair:
+            continue
+        meta_content = download_file_content(pair["meta_id"])
+        meta_by_file[base] = json.loads(meta_content)
+    
+    # ✅ 補完つきペア構築を呼び出し
+    pair_matches = build_pair_matches(top_matches, meta_by_file)
+
     context = "\n\n".join([
         f"{m.get('speaker_role', '')} {m.get('speaker', '')}（{m.get('source_file', '')}）\n{m.get('text', '')}"
         for m in top_matches
