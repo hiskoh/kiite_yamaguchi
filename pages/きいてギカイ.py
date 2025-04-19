@@ -291,7 +291,7 @@ for i, s in enumerate(st.session_state.suggestions_sampled):
             results = search_faiss_and_respond(s, 5)
             st.session_state.last_answer = results["summary"]
             st.session_state.last_matches = results["matches
-            st.session_state.last_matches = results["qa_pairs"]
+            st.session_state.qa_pairs = results["qa_pairs"]
         st.session_state.is_generating = False
         st.rerun()
 
@@ -303,7 +303,7 @@ if st.session_state.input and st.session_state.send_now:
         results = search_faiss_and_respond(st.session_state.input, 5)
         st.session_state.last_answer = results["summary"]
         st.session_state.last_matches = results["matches"]
-        st.session_state.last_matches = results["qa_pairs"]
+        st.session_state.qa_pairs = results["qa_pairs"]
     st.session_state.input_value = ""
     st.session_state.is_generating = False
 
