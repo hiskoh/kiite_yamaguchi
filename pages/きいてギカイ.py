@@ -240,34 +240,8 @@ def search_faiss_and_respond(query, top_k=5):
 
     top_matches = sorted(matches, key=lambda x: x["score"])[:top_k]
 
-    pair_matches = []
-    seen_pairs = set()
+    pair_matches = build_pair_matches(top_matches, meta_by_file)
 
-    for m in top_matches:
-        pid = m.get("pair_id")
-        src = m.get("source_file")
-        if pid is None or src not in meta_by_file:
-            continue
-
-        key = (src, pid)
-        if key in seen_pairs:
-            continue
-        seen_pairs.add(key)
-
-        # ✅ 同じファイル内だけを対象に、pair_id 一致で絞る
-        meta_candidates = meta_by_file[src]
-        group = [x for x in meta_candidates if x.get("pair_id") == pid]
-
-        q = [x for x in group if x.get("qa_role") == "Q"]
-        a = [x for x in group if x.get("qa_role") == "A"]
-
-        if q or a:
-            pair_matches.append({
-                "pair_id": pid,
-                "source_file": src,
-                "Q": q,
-                "A": a
-            })
 
     context = "\n\n".join([
         f"{m.get('speaker_role', '')} {m.get('speaker', '')}（{m.get('source_file', '')}）\n{m.get('text', '')}"
