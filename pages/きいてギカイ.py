@@ -1,31 +1,4 @@
-# ✅ ファイル単位に first split
-file_grouped = {}
-for m in matches:
-    src = m.get("source_file")
-    if src is None:
-        continue
-    file_grouped.setdefault(src, []).append(m)
-
-pair_matches = []
-
-for src, items in file_grouped.items():
-    # ファイル内で pair_id ごとにまとめる
-    pair_map = {}
-    for m in items:
-        pid = m.get("pair_id")
-        if pid is None:
-            continue
-        pair_map.setdefault(pid, []).append(m)
-
-    for pid, group in pair_map.items():
-        q = [x for x in group if x.get("qa_role") == "Q"]
-        a = [x for x in group if x.get("qa_role") == "A"]
-        pair_matches.append({
-            "pair_id": pid,
-            "source_file": src,
-            "Q": q,
-            "A": a
-        })import streamlit as st
+import streamlit as st
 import chardet
 from openai import OpenAI
 import gspread
@@ -286,8 +259,6 @@ def search_faiss_and_respond(query, top_k=5):
                 "Q": q,
                 "A": a
             })
-
-
 
 # 🔸 UI構成
 st.title("📜 きいてギカイやまぐち（β）")
