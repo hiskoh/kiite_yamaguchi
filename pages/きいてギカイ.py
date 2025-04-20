@@ -23,6 +23,8 @@ for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_ge
             st.session_state[key] = []
         elif key in ["last_matches", "qa_pairs"]:
             st.session_state[key] = []
+        elif key == "clarify_active":
+            st.session_state[key] = False
         else:
             st.session_state[key] = False
 
@@ -309,44 +311,49 @@ st.text_input(
 )
 
 # --- サジェスト ---
-suggestions_master = [
-    "子育て政策について不安です...",
-    "学校教育について気になる",
-    "行政のDXって何か話題になっている？"
-]
-if not st.session_state.suggestions_sampled:
-    st.session_state.suggestions_sampled = random.sample(suggestions_master, k=3)
+if not st.session_state.get("clarify_active", False):  
+    suggestions_master = [
+        "子育て政策について不安です...",
+        "学校教育について気になる",
+        "行政のDXって何か話題になっている？"
+    ]
+    if not st.session_state.suggestions_sampled:
+        st.session_state.suggestions_sampled = random.sample(suggestions_master, k=3)
 
-cols = st.columns(3)
-for i, s in enumerate(st.session_state.suggestions_sampled):
-    if cols[i].button(f" {s}", key=f"sugg_{s}"):
-        st.session_state.input_value = s
-        st.session_state.query = s
-        st.session_state.send_now = False
-        st.session_state.is_generating = True
-        with st.spinner(f"⏳ 「{s}」に回答中... 少々お待ちください"):
-            results = search_faiss_and_respond(s, 5)
-            st.session_state.last_answer = results["summary"]
-            st.session_state.last_matches = results["matches"]
-            st.session_state.qa_pairs = results["qa_pairs"]
-        st.session_state.is_generating = False
-        st.rerun()
+    cols = st.columns(3)
+    for i, s in enumerate(st.session_state.suggestions_sampled):
+        if cols[i].button(f" {s}", key=f"sugg_{s}"):
+            st.session_state.input_value = s
+            st.session_state.query = s
+            st.session_state.send_now = False
+            st.session_state.is_generating = True
+            st.session_state.clarify_active = False  
+            with st.spinner(f"⏳ 「{s}」に回答中... 少々お待ちください"):
+                results = search_faiss_and_respond(s, 5)
+                st.session_state.last_answer = results["summary"]
+                st.session_state.last_matches = results["matches"]
+                st.session_state.qa_pairs = results["qa_pairs"]
+            st.session_state.is_generating = False
+            st.rerun()
 
 # Clarifyプロンプトの確認
 if st.session_state.input and not st.session_state.get("clarified", False):
     clarify_result = clarify_query(st.session_state.input)
 
     if clarify_result["ambiguous"] and clarify_result["rewritten_query"]:
+        st.session_state.clarify_active = True
         st.info(f"👇 より正確な検索のため、以下の質問に置き換えるのはいかがでしょうか？\n\n**→ {clarify_result['rewritten_query']}**")
 
         col1, col2 = st.columns(2)
         if col1.button("🔁 置き換えて検索"):
             st.session_state.input_value = clarify_result["rewritten_query"]
             st.session_state.clarified = True
+            st.session_state.clarify_active = False  # ←完了後オフに
             st.session_state.send_now = True
             st.rerun()
         if col2.button("👍 入力した検索文のままで検索"):
             st.session_state.clarified = True
+            st.session_state.clarify_active = False  # ←完了後オフに
             st.session_state.send_now = True
             st.rerun()
         st.stop()
