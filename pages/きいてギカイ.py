@@ -14,6 +14,9 @@ import streamlit as st
 
 st.set_page_config(page_title="きいてギカイやまぐち（β）", layout="wide", page_icon="📜")
 
+#取得するチャンク数（≒類似度の高い議会答弁を取得する際、何件まで取得するかを制御）
+top_k = 6
+
 # ✅ セッションステートの初期化
 for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_generating", "input", "input_value", "suggestions_sampled", "qa_pairs", "clarified", "clarify_active"]:
     if key not in st.session_state:
@@ -146,7 +149,7 @@ def clarify_query(user_query):
         return {"ambiguous": False, "reason": "", "rewritten_query": ""}
 
 # 議事録データにアクセスして関連発言を出力
-def search_faiss_and_respond(query, top_k=5):
+def search_faiss_and_respond(query, top_k):
     import tempfile
 
     gdrive_folder_id = st.secrets["kiite-gikai"]["GOOGLE_GIKAI_DATA_ID"]
@@ -329,7 +332,7 @@ if not st.session_state.get("clarify_active", False):
             st.session_state.is_generating = True
             st.session_state.clarify_active = False  
             with st.spinner(f"⏳ 「{s}」に回答中... 少々お待ちください"):
-                results = search_faiss_and_respond(s, 5)
+                results = search_faiss_and_respond(s, top_k)
                 st.session_state.last_answer = results["summary"]
                 st.session_state.last_matches = results["matches"]
                 st.session_state.qa_pairs = results["qa_pairs"]
@@ -367,7 +370,7 @@ if st.session_state.input and st.session_state.send_now:
     st.session_state.send_now = False
     st.session_state.is_generating = True
     with st.spinner(f"⏳ 「{st.session_state.input}」に回答中... 少々お待ちください"):
-        results = search_faiss_and_respond(st.session_state.input, 5)
+        results = search_faiss_and_respond(st.session_state.input, top_k)
         st.session_state.last_answer = results["summary"]
         st.session_state.last_matches = results["matches"]
         st.session_state.qa_pairs = results["qa_pairs"]
