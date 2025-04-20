@@ -122,7 +122,7 @@ def on_enter():
     if st.session_state.input.strip():
         st.session_state.send_now = True
 
-# clarify機能（質問があいまいなときのフォローO
+# clarify機能（質問があいまいなときのフォロー）
 def clarify_query(user_query):
     clarify_prompt = gikai_pair_prompt = load_prompt("gikai_clarify_prompt.txt")
     messages = [
@@ -337,12 +337,10 @@ if st.session_state.input and not st.session_state.get("clarified", False):
     clarify_result = clarify_query(st.session_state.input)
 
     if clarify_result["ambiguous"] and clarify_result["rewritten_query"]:
-        st.warning(f"❓ ご質問はややあいまいかもしれません（理由：{clarify_result['reason']}）")
-        st.info(f"👇 より正確に検索するため、以下の質問に置き換えてもよいですか？\n\n**→ {clarify_result['rewritten_query']}**")
+        st.info(f"👇 より正確に検索するため、以下の質問に置き換えるのはいかがですか？\n\n**→ {clarify_result['rewritten_query']}**")
 
         col1, col2 = st.columns(2)
         if col1.button("🔁 置き換えて検索する"):
-            st.session_state.input = clarify_result["rewritten_query"]
             st.session_state.input_value = clarify_result["rewritten_query"]
             st.session_state.clarified = True
             st.session_state.send_now = True
