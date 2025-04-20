@@ -232,11 +232,11 @@ def search_faiss_and_respond(query, top_k=5):
                 {"role": "system", "content": gikai_pair_prompt},
                 {"role": "user", "content": qa_context}
             ]
-            resp = openai.ChatCompletion.create(
+            resp = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=messages
             )
-            summary = resp.choices[0].message["content"].strip()
+            summary = resp.choices[0].message.content.strip()
         except Exception as e:
             summary = f"⚠️ 要約失敗：{e}"
         pair["summary"] = summary
@@ -250,11 +250,11 @@ def search_faiss_and_respond(query, top_k=5):
                 {"role": "system", "content": summary_overall_prompt},
                 {"role": "user", "content": context}
             ]
-            resp = openai.ChatCompletion.create(
+            resp = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=messages
             )
-            summary_overall = resp.choices[0].message["content"].strip()
+            summary = resp.choices[0].message.content.strip()
         except Exception as e:
             summary_overall = f"⚠️ 全体サマリ生成失敗：{e}"
     else:
