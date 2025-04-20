@@ -221,6 +221,7 @@ def search_faiss_and_respond(query, top_k=5):
     gikai_pair_prompt = load_prompt("gikai_pair_summary.txt")
     summary_overall_prompt = load_prompt("gikai_summary_overall.txt")
 
+    summary_overall = "⚠️ 要約対象のQ/Aペアが見つかりませんでした。"
     # ✅ Q/Aペアの個別要約
     summary_per_pair = []
     for pair in pair_matches:
