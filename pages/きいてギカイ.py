@@ -396,7 +396,7 @@ elif st.session_state.last_answer and st.session_state.qa_pairs:
                 st.markdown(q.get("text", ""))
 
         for a in pair.get("A", []):
-            with st.expander(f"🔵【答弁】{a.get('speaker_role')} {a.get('speaker')}（{a.get('source_file', '').replace('.txt', '')}）")
+            with st.expander(f"🔵【答弁】{a.get('speaker_role')} {a.get('speaker')}（{a.get('source_file', '').replace('.txt', '')}）"):
                 st.markdown(a.get("text", ""))
 elif st.session_state.send_now or st.session_state.input.strip() or st.session_state.query:
     st.warning("⚠️ 情報が見つかりませんでした。")
