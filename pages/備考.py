@@ -10,7 +10,7 @@ st.title("きいてみらい山口について")
 st.markdown("""
 このプロジェクトは、山口市議会の議事録をもとに、市民が議会の議論に簡単にアクセスできるようにするための取り組みです。
 
-データは Google Drive 上に保存された議事録テキスト（.txt）ファイルを元にしています。これらは構造化された上でチャット検索・要約に利用されています。
+データは Google Drive 上に保存された議事録インデックス（.index）ファイルを元にしています。これらは構造化された上でチャット検索・要約に利用されています。
 """)
 
 # ✅ 出典一覧の取得関数
@@ -21,7 +21,7 @@ def get_drive_service():
     )
     return build("drive", "v3", credentials=creds)
 
-def list_txt_sources(folder_id, service):
+def list_index_sources(folder_id, service):
     sources = set()
     folders_to_search = [folder_id]
 
@@ -37,7 +37,7 @@ def list_txt_sources(folder_id, service):
                 parent_id = file["parents"][0]
                 parent = service.files().get(fileId=parent_id, fields="name").execute()
                 folder_name = parent["name"]
-                base_name = file["name"].replace(".txt", "")
+                base_name = file["name"].replace(".index", "")
                 sources.add(f"{folder_name}/{base_name}")
     return sorted(sources)
 
@@ -45,11 +45,14 @@ def list_txt_sources(folder_id, service):
 try:
     folder_id = st.secrets["kiite-gikai"]["GOOGLE_GIKAI_DATA_ID"]
     drive_service = get_drive_service()
-    source_list = list_txt_sources(folder_id, drive_service)
+    source_list = list_index_sources(folder_id, drive_service)
 
     with st.expander("📂 議事録の出典一覧（クリックで表示）", expanded=False):
-        for path in source_list:
-            st.markdown(f"- {path}")
+        if source_list:
+            for path in source_list:
+                st.markdown(f"- {path}")
+        else:
+            st.markdown("（出典が見つかりませんでした）")
 
 except Exception as e:
     st.warning(f"⚠️ 出典一覧を取得できませんでした: {e}")
