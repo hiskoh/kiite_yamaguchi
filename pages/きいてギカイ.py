@@ -27,8 +27,8 @@ for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_ge
             st.session_state[key] = False
 
 # ✅ プロンプト読み込み関数
-def load_prompt():
-    with open("prompts/gikai_prompt.txt", "r", encoding="utf-8") as f:
+def load_prompt(filename):
+    with open("prompts/" + filename, "r", encoding="utf-8") as f:
         return f.read()
 
 # ✅ 同意画面
@@ -122,40 +122,8 @@ def on_enter():
     if st.session_state.input.strip():
         st.session_state.send_now = True
 
-# 類似チャンク matches から Q/A ペアを組み、片方が欠けていたら meta から補完
-def build_pair_matches(top_matches, meta_by_file):
-    pair_matches = []
-    seen = set()
-
-    for m in top_matches:
-        pid = m.get("pair_id")
-        src = m.get("source_file")
-        if pid is None or src not in meta_by_file:
-            continue
-
-        key = (src, pid)
-        if key in seen:
-            continue
-        seen.add(key)
-
-        # 同じファイル・同じpair_idのQ/Aチャンクのみ補完
-        candidates = [x for x in meta_by_file[src] if x.get("pair_id") == pid]
-        q = [x for x in candidates if x.get("qa_role") == "Q"]
-        a = [x for x in candidates if x.get("qa_role") == "A"]
-
-        pair_matches.append({
-            "pair_id": pid,
-            "source_file": src,
-            "Q": q,
-            "A": a
-        })
-
-    return pair_matches
-
-
 # 議事録データにアクセスして関連発言を出力
 def search_faiss_and_respond(query, top_k=5):
-    from openai import OpenAI
     import tempfile
 
     gdrive_folder_id = st.secrets["kiite-gikai"]["GOOGLE_GIKAI_DATA_ID"]
@@ -181,8 +149,8 @@ def search_faiss_and_respond(query, top_k=5):
         fh.seek(0)
         return fh.read()
 
+    # 🔹 index/meta をマッピング
     index_files = list_index_meta_files(gdrive_folder_id)
-
     file_pairs = {}
     for f in index_files:
         if f["name"].endswith(".meta.json"):
@@ -192,33 +160,28 @@ def search_faiss_and_respond(query, top_k=5):
             base = f["name"].removesuffix(".index")
             file_pairs.setdefault(base, {})["index_id"] = f["id"]
 
+    # 🔹 クエリベクトル化
     res = client.embeddings.create(model="text-embedding-ada-002", input=[query])
-    query_embedding = res.data[0].embedding
-    query_vec = np.array(query_embedding, dtype="float32").reshape(1, -1)
+    query_vec = np.array(res.data[0].embedding, dtype="float32").reshape(1, -1)
 
     matches = []
     meta_by_file = {}
 
+    # 🔍 類似チャンク検索
     for base, pair in file_pairs.items():
         if "index_id" not in pair or "meta_id" not in pair:
             continue
 
-        meta_content = download_file_content(pair["meta_id"])
-        meta = json.loads(meta_content)
+        meta = json.loads(download_file_content(pair["meta_id"]))
         for m in meta:
             m["source_file"] = base + ".txt"
         meta_by_file[base + ".txt"] = meta
 
-        index_data = download_file_content(pair["index_id"])
         with tempfile.NamedTemporaryFile(delete=False) as f:
-            f.write(index_data)
-            index_path = f.name
+            f.write(download_file_content(pair["index_id"]))
+            index = faiss.read_index(f.name)
 
-        index = faiss.read_index(index_path)
-        if index.ntotal == 0:
-            continue
-        if index.d != query_vec.shape[1]:
-            st.warning(f"⚠️ 次元不一致: {base} index.d={index.d}, query.d={query_vec.shape[1]}")
+        if index.ntotal == 0 or index.d != query_vec.shape[1]:
             continue
 
         D, I = index.search(query_vec, top_k)
@@ -228,7 +191,6 @@ def search_faiss_and_respond(query, top_k=5):
             m = meta[i]
             m["score"] = float(dist)
             m["source_index"] = base
-            m["source_file"] = base + ".txt"
             matches.append(m)
 
     if not matches:
@@ -238,66 +200,72 @@ def search_faiss_and_respond(query, top_k=5):
             "qa_pairs": []
         }
 
+    # 🔹 スコア上位抽出
     top_matches = sorted(matches, key=lambda x: x["score"])[:top_k]
 
-    pair_matches = build_pair_matches(top_matches, meta_by_file)
+    # 🔹 Q/Aペア抽出（補完含む）
+    pair_matches = []
+    seen = set()
+    for m in top_matches:
+        pid = m.get("pair_id")
+        src = m.get("source_file")
+        if not pid or src not in meta_by_file or (src, pid) in seen:
+            continue
+        seen.add((src, pid))
+        group = [x for x in meta_by_file[src] if x.get("pair_id") == pid]
+        q = [x for x in group if x.get("qa_role") == "Q"]
+        a = [x for x in group if x.get("qa_role") == "A"]
+        pair_matches.append({"pair_id": pid, "source_file": src, "Q": q, "A": a})
 
+    # ✅ プロンプト読み込み（ファイル名は文字列）
+    gikai_pair_prompt = load_prompt("gikai_pair_summary.txt")
+    summary_overall_prompt = load_prompt("gikai_summary_overall.txt")
 
-    context = "\n\n".join([
-        f"{m.get('speaker_role', '')} {m.get('speaker', '')}（{m.get('source_file', '')}）\n{m.get('text', '')}"
-        for m in top_matches
-    ])
-
-    try:
-        system_prompt = f"{load_prompt()}\n\n{context}"
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": query}
-            ]
-        )
-        summary = response.choices[0].message.content.strip()
-    except Exception as e:
-        summary = f"⚠️ GPTによる要約に失敗しました：{e}"
-
-    # ✅ 各Q/Aペアに対して個別に要約
+    # ✅ Q/Aペアの個別要約
     summary_per_pair = []
     for pair in pair_matches:
         q_texts = [q["text"] for q in pair["Q"]]
         a_texts = [a["text"] for a in pair["A"]]
         qa_context = "\n\n".join(["【質問】" + q for q in q_texts] + ["【答弁】" + a for a in a_texts])
-
         try:
             messages = [
-                {"role": "system", "content": "以下は市議会での質問と答弁です。要点を簡潔にまとめてください。"},
+                {"role": "system", "content": gikai_pair_prompt},
                 {"role": "user", "content": qa_context}
             ]
-            resp = client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
-            summary = resp.choices[0].message.content.strip()
+            resp = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=messages
+            )
+            summary = resp.choices[0].message["content"].strip()
         except Exception as e:
             summary = f"⚠️ 要約失敗：{e}"
-
         pair["summary"] = summary
         summary_per_pair.append(summary)
 
-    # ✅ 全体のサマリを統合的に生成
-    try:
-        context = "\n\n".join([f"{i+1}件目：{s}" for i, s in enumerate(summary_per_pair)])
-        messages = [
-            {"role": "system", "content": "以下は議会での質疑応答5件の要約です。全体として、何が議論されたかを簡潔にまとめてください。"},
-            {"role": "user", "content": context}
-        ]
-        resp = client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
-        summary_overall = resp.choices[0].message.content.strip()
-    except Exception as e:
-        summary_overall = f"⚠️ 全体サマリ生成失敗：{e}"
+    # ✅ 全体要約
+    if summary_per_pair:
+        try:
+            context = "\n\n".join([f"{i+1}件目：{s}" for i, s in enumerate(summary_per_pair)])
+            messages = [
+                {"role": "system", "content": summary_overall_prompt},
+                {"role": "user", "content": context}
+            ]
+            resp = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=messages
+            )
+            summary_overall = resp.choices[0].message["content"].strip()
+        except Exception as e:
+            summary_overall = f"⚠️ 全体サマリ生成失敗：{e}"
+    else:
+        summary_overall = "⚠️ 要約対象のQ/Aペアが見つかりませんでした。"
 
     return {
         "matches": top_matches,
         "summary": summary_overall,
         "qa_pairs": pair_matches
     }
+
 
 
 
