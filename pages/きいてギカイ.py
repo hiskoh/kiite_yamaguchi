@@ -388,15 +388,19 @@ elif st.session_state.last_answer and st.session_state.qa_pairs:
         summary = pair.get("summary", "").strip()
         if not summary:
             continue
-        
-        #各質疑のトグルリスト
-        with st.expander(f"📝 {i}. {summary}"):
+
+        with st.expander(f"📝 {summary}"):
+            st.markdown("💬 " + summary)  # 要約本文（デフォルト表示）
+
             for q in pair.get("Q", []):
-                st.markdown(f"🟢【質問】{q.get('speaker_role')} {q.get('speaker')}（{q.get('source_file', '').replace('.txt', '')}）")
-                st.markdown(q.get("text", ""))
+                label = f"🟢【質問】{q.get('speaker_role')} {q.get('speaker')}（{q.get('source_file', '').replace('.txt', '')}）"
+                with st.expander(label):
+                    st.markdown(q.get("text", ""))
+
             for a in pair.get("A", []):
-                st.markdown(f"🔵【答弁】{a.get('speaker_role')} {a.get('speaker')}（{a.get('source_file', '').replace('.txt', '')}）")
-                st.markdown(a.get("text", ""))
+                label = f"🔵【答弁】{a.get('speaker_role')} {a.get('speaker')}（{a.get('source_file', '').replace('.txt', '')}）"
+                with st.expander(label):
+                    st.markdown(a.get("text", ""))
                 
 elif st.session_state.send_now or st.session_state.input.strip() or st.session_state.query:
     st.warning("⚠️ 情報が見つかりませんでした。")
