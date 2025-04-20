@@ -1,22 +1,27 @@
 import streamlit as st
-from openai import OpenAI
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
-import random
+from googleapiclient.discovery import build
+from google.oauth2.service_account import Credentials
 
 # ✅ ページ設定
 st.set_page_config(page_title="きいてみらい山口", layout="wide")
 st.title("きいてみらい山口について")
 
-# ✅ 説明セクション
+# ✅ 説明
 st.caption("""
 ⚠️ 回答は生成AIによるものであり、正確性を保証するものではありません。  
 🙌 本プロジェクトは個人により運営されています。ご支援いただける方はぜひこちらから：  
 [💛 codocで支援する](https://codoc.jp/sites/p8cEFlTZQA/entries/MMZnODc1dw)
 """)
 
-# ✅ 出典取得関数（Drive API 事前に service = build('drive', 'v3') 済前提）
+# ✅ Google Drive接続（secretsから）
+def get_drive_service():
+    creds = Credentials.from_service_account_info(
+        st.secrets["gsheets_service_account"],
+        scopes=["https://www.googleapis.com/auth/drive"]
+    )
+    return build("drive", "v3", credentials=creds)
+
+# ✅ .txtファイルの出典一覧を取得
 def list_txt_sources(folder_id, service):
     sources = set()
     folders_to_search = [folder_id]
@@ -38,21 +43,15 @@ def list_txt_sources(folder_id, service):
                 sources.add(full_path)
     return sorted(sources)
 
-# ✅ 出典一覧（Drive IDとDrive APIがある場合のみ）
+# ✅ Driveから出典を取得・表示
+INPUT_FOLDER_ID = st.secrets["kiite-gikai"]["GOOGLE_DRIVE_FOLDER_ID"]  # 👈 secrets に登録されている前提
+
 try:
-    from googleapiclient.discovery import build
-    from google.colab import auth
-    import os
-    auth.authenticate_user()
-    service = build('drive', 'v3')
-
-    INPUT_FOLDER_ID = "ここにDriveのフォルダIDを入力"
-
-    source_list = list_txt_sources(INPUT_FOLDER_ID, service)
+    drive_service = get_drive_service()
+    source_list = list_txt_sources(INPUT_FOLDER_ID, drive_service)
 
     with st.expander("📂 議事録の出典一覧を表示", expanded=False):
         for path in source_list:
             st.markdown(f"- {path}")
-
 except Exception as e:
-    st.warning("⚠️ 出典一覧を取得できませんでした（Drive API接続が必要です）")
+    st.warning(f"⚠️ 出典一覧を取得できませんでした: {e}")
