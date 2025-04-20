@@ -15,7 +15,7 @@ import streamlit as st
 st.set_page_config(page_title="きいてギカイやまぐち（β）", layout="wide", page_icon="📜")
 
 # ✅ セッションステートの初期化
-for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_generating", "input", "input_value", "suggestions_sampled", "qa_pairs", "clarified"]:
+for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_generating", "input", "input_value", "suggestions_sampled", "qa_pairs", "clarified", "clarify_active"]:
     if key not in st.session_state:
         if key in ["query", "last_answer", "input", "input_value"]:
             st.session_state[key] = ""
@@ -342,7 +342,7 @@ if st.session_state.input and not st.session_state.get("clarified", False):
 
     if clarify_result["ambiguous"] and clarify_result["rewritten_query"]:
         st.session_state.clarify_active = True
-        st.info(f"👇 より正確な検索のため、以下の質問に置き換えるのはいかがでしょうか？\n\n**→ {clarify_result['rewritten_query']}**")
+        st.info(f"👇 より正確な検索のため、{clarify_result['reason']}をお勧めします。例えば、以下の質問に置き換えるのはいかがでしょうか？\n\n**→ {clarify_result['rewritten_query']}**")
 
         col1, col2 = st.columns(2)
         if col1.button("🔁 置き換えて検索"):
