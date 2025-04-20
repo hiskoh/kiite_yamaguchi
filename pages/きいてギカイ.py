@@ -21,7 +21,7 @@ for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_ge
             st.session_state[key] = ""
         elif key == "suggestions_sampled":
             st.session_state[key] = []
-        elif key == "last_matches":
+        elif key in ["last_matches", "qa_pairs"]:
             st.session_state[key] = []
         else:
             st.session_state[key] = False
