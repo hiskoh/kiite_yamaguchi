@@ -10,7 +10,7 @@ st.title("きいてみらい山口について")
 st.markdown("""
 このプロジェクトは、山口市議会の議事録をもとに、市民が議会の議論に簡単にアクセスできるようにするための取り組みです。
 
-データは Google Drive 上に保存された議事録インデックス（.index）ファイルを元にしています。これらは構造化された上でチャット検索・要約に利用されています。
+データは本サイトの制作者がクラウド上に保存した議事録ファイルを元にしています。現在、検索対象としている議事録は下記の通りです。
 """)
 
 # ✅ 出典一覧の取得関数
@@ -38,7 +38,7 @@ def list_index_sources(folder_id, service):
                 parent = service.files().get(fileId=parent_id, fields="name").execute()
                 folder_name = parent["name"]
                 base_name = file["name"].replace(".index", "")
-                base_name = base_name.split("/", 1)[-1] if "/" in base_name else ""
+                base_name = base_name.split("/", 1)[0] if "/" in base_name else ""
                 sources.add(f"{folder_name}/{base_name}")
     return sorted(sources)
 
