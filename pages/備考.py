@@ -38,6 +38,7 @@ def list_index_sources(folder_id, service):
                 parent = service.files().get(fileId=parent_id, fields="name").execute()
                 folder_name = parent["name"]
                 base_name = file["name"].replace(".index", "")
+                base_name = base_name.split("/", 1)[-1] if "/" in path else ""
                 sources.add(f"{folder_name}/{base_name}")
     return sorted(sources)
 
