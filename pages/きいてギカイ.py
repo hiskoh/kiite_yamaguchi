@@ -278,7 +278,7 @@ st.title("📜 きいてギカイやまぐち（β）")
 
 
 # --- チャット欄（送信ボタンなし・Enter送信） ---
-st.markdown("---\n#### 💬 質問してみよう")
+st.markdown("---\n\n#### 💬 質問してみよう")
 st.text_input(
     label="",
     key="input",
@@ -332,7 +332,7 @@ if st.session_state.is_generating:
 elif st.session_state.last_answer and st.session_state.qa_pairs:
     st.success(st.session_state.last_answer)
 
-    st.markdown("---\n#### 📂 各質問の要約と原文")
+    st.markdown("---\n\n\#### 📂 各質問の要約と原文")
     for i, pair in enumerate(st.session_state.qa_pairs, start=1):
         summary = pair.get("summary", "").strip()
         if not summary:
