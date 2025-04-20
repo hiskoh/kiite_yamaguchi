@@ -315,7 +315,7 @@ if not st.session_state.get("clarify_active", False):
     suggestions_master = [
         "公共施設の統廃合について気になります",
         "行政のDX化は進んでいますか",
-        "市役所の移転・建設についてどんな議論が行われていましたか"
+        "市役所の新庁舎建設について教えて"
     ]
     if not st.session_state.suggestions_sampled:
         st.session_state.suggestions_sampled = random.sample(suggestions_master, k=3)
