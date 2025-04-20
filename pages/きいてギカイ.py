@@ -261,11 +261,44 @@ def search_faiss_and_respond(query, top_k=5):
     except Exception as e:
         summary = f"⚠️ GPTによる要約に失敗しました：{e}"
 
+    # ✅ 各Q/Aペアに対して個別に要約
+    summary_per_pair = []
+    for pair in pair_matches:
+        q_texts = [q["text"] for q in pair["Q"]]
+        a_texts = [a["text"] for a in pair["A"]]
+        qa_context = "\n\n".join(["【質問】" + q for q in q_texts] + ["【答弁】" + a for a in a_texts])
+
+        try:
+            messages = [
+                {"role": "system", "content": "以下は市議会での質問と答弁です。要点を簡潔にまとめてください。"},
+                {"role": "user", "content": qa_context}
+            ]
+            resp = client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
+            summary = resp.choices[0].message.content.strip()
+        except Exception as e:
+            summary = f"⚠️ 要約失敗：{e}"
+
+        pair["summary"] = summary
+        summary_per_pair.append(summary)
+
+    # ✅ 全体のサマリを統合的に生成
+    try:
+        context = "\n\n".join([f"{i+1}件目：{s}" for i, s in enumerate(summary_per_pair)])
+        messages = [
+            {"role": "system", "content": "以下は議会での質疑応答5件の要約です。全体として、何が議論されたかを簡潔にまとめてください。"},
+            {"role": "user", "content": context}
+        ]
+        resp = client.chat.completions.create(model="gpt-3.5-turbo", messages=messages)
+        summary_overall = resp.choices[0].message.content.strip()
+    except Exception as e:
+        summary_overall = f"⚠️ 全体サマリ生成失敗：{e}"
+
     return {
         "matches": top_matches,
-        "summary": summary,
+        "summary": summary_overall,
         "qa_pairs": pair_matches
     }
+
 
 
 # 🔸 UI構成
@@ -330,22 +363,20 @@ elif st.session_state.last_answer:
     st.success(st.session_state.last_answer)
     
     # --- 原文チャンク表示（質問＋答弁のペア表示）
-    if "qa_pairs" in st.session_state and st.session_state.qa_pairs:
-        st.markdown("#### 🧾 関連する質疑応答の出典")
+    st.markdown("#### 💡全体の要約（複数の質疑応答から生成）")
+    st.success(st.session_state.last_answer)
 
-        for i, pair in enumerate(st.session_state.qa_pairs, start=1):
-            st.markdown(f"**{i}. 質問と答弁のセット**")
+    st.markdown("#### 🗂 各質疑応答の要約と原文")
+    for i, pair in enumerate(st.session_state.qa_pairs, start=1):
+        st.markdown(f"---\n### {i}. {pair.get('summary', '（要約なし）')}")
+        
+        for q in pair.get("Q", []):
+            with st.expander(f"🟢【質問】{q.get('speaker_role')} {q.get('speaker')}（{q.get('source_file')}）"):
+                st.markdown(q.get("text", ""))
 
-            # 質問（複数分かれてる場合もある）
-            for q in pair.get("Q", []):
-                with st.expander(f"🟢【質問】{q.get('speaker_role','')} {q.get('speaker','')}（{q.get('source_file','')}）"):
-                    st.markdown(q.get("text", ""))
-
-            # 答弁
-            for a in pair.get("A", []):
-                with st.expander(f"🔵【答弁】{a.get('speaker_role','')} {a.get('speaker','')}（{a.get('source_file','')}）"):
-                    st.markdown(a.get("text", ""))
-
+        for a in pair.get("A", []):
+            with st.expander(f"🔵【答弁】{a.get('speaker_role')} {a.get('speaker')}（{a.get('source_file')}）"):
+                st.markdown(a.get("text", ""))
     else:
         st.info("関連する質疑応答の出典は見つかりませんでした。")
 
