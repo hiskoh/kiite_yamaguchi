@@ -315,7 +315,7 @@ if not st.session_state.get("clarify_active", False):
     suggestions_master = [
         "公共施設の統廃合について気になります",
         "行政のDX化は進んでいますか",
-        "市役所の新庁舎建設について教えて"
+        "観光・インバウンド対応について教えて"
     ]
     if not st.session_state.suggestions_sampled:
         st.session_state.suggestions_sampled = random.sample(suggestions_master, k=3)
@@ -342,7 +342,7 @@ if st.session_state.input and not st.session_state.get("clarified", False):
 
     if clarify_result["ambiguous"] and clarify_result["rewritten_query"]:
         st.session_state.clarify_active = True
-        st.info(f"👇 より正確な検索のため、{clarify_result['reason']}をお勧めします。例えば、以下の質問に置き換えるのはいかがでしょうか？\n\n**→ {clarify_result['rewritten_query']}**")
+        st.info(f"👇 より正確な検索のため「{clarify_result['reason']}」ことをお勧めします。例えば、以下の質問に置き換えるのはいかがでしょうか？\n\n**→ {clarify_result['rewritten_query']}**")
 
         col1, col2 = st.columns(2)
         if col1.button("🔁 置き換えて検索"):
@@ -351,7 +351,7 @@ if st.session_state.input and not st.session_state.get("clarified", False):
             st.session_state.clarify_active = False
             st.session_state.send_now = True
             st.rerun()
-        if col2.button("👍 入力した検索文のままで検索"):
+        if col2.button("🔜 入力文のままで検索"):
             st.session_state.clarified = True
             st.session_state.clarify_active = False
             st.session_state.send_now = True
