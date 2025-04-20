@@ -306,16 +306,16 @@ st.text_input(
     label="",
     key="input",
     value=st.session_state.input_value,
-    placeholder="例：物価高が心配…",
+    placeholder="例：学校の給食費無償化についてどのような議論が行われていますか",
     on_change=lambda: st.session_state.update(send_now=True)
 )
 
 # --- サジェスト ---
 if not st.session_state.get("clarify_active", False):  
     suggestions_master = [
-        "子育て政策について不安です...",
-        "学校教育について気になる",
-        "行政のDXって何か話題になっている？"
+        "公共施設の統廃合について気になります",
+        "行政のDX化は進んでいますか",
+        "市役所の移転・建設についてどんな議論が行われていましたか"
     ]
     if not st.session_state.suggestions_sampled:
         st.session_state.suggestions_sampled = random.sample(suggestions_master, k=3)
@@ -348,15 +348,19 @@ if st.session_state.input and not st.session_state.get("clarified", False):
         if col1.button("🔁 置き換えて検索"):
             st.session_state.input_value = clarify_result["rewritten_query"]
             st.session_state.clarified = True
-            st.session_state.clarify_active = False  # ←完了後オフに
+            st.session_state.clarify_active = False
             st.session_state.send_now = True
             st.rerun()
         if col2.button("👍 入力した検索文のままで検索"):
             st.session_state.clarified = True
-            st.session_state.clarify_active = False  # ←完了後オフに
+            st.session_state.clarify_active = False
             st.session_state.send_now = True
             st.rerun()
         st.stop()
+    
+    else:
+        # 🟨 あいまいでない or 明確な修正提案がない場合も、Clarifyは終了させる！
+        st.session_state.clarified = True
 
 # --- 送信処理（Enter or サジェスト選択時） ---
 if st.session_state.input and st.session_state.send_now:
