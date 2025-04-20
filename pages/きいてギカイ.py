@@ -332,12 +332,13 @@ if st.session_state.is_generating:
 elif st.session_state.last_answer and st.session_state.qa_pairs:
     st.success(st.session_state.last_answer)
 
-    st.markdown(f"---\n### {i}. {summary}")
+    
     st.markdown("#### 📂 各質問の要約と原文")
     for i, pair in enumerate(st.session_state.qa_pairs, start=1):
         summary = pair.get("summary", "").strip()
         if not summary:
             continue
+            st.markdown(f"---\n### {i}. {summary}")
         
         for q in pair.get("Q", []):
             with st.expander(f"🟢【質問】{q.get('speaker_role')} {q.get('speaker')}（{q.get('source_file')}）"):
