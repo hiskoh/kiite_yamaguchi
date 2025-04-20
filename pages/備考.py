@@ -6,14 +6,14 @@ from google.oauth2.service_account import Credentials
 st.set_page_config(page_title="きいてみらい山口", layout="wide")
 st.title("きいてみらい山口について")
 
-# ✅ 説明
-st.caption("""
-⚠️ 回答は生成AIによるものであり、正確性を保証するものではありません。  
-🙌 本プロジェクトは個人により運営されています。ご支援いただける方はぜひこちらから：  
-[💛 codocで支援する](https://codoc.jp/sites/p8cEFlTZQA/entries/MMZnODc1dw)
+# ✅ 本文
+st.markdown("""
+このプロジェクトは、山口市議会の議事録をもとに、市民が議会の議論に簡単にアクセスできるようにするための取り組みです。
+
+データは Google Drive 上に保存された議事録テキスト（.txt）ファイルを元にしています。これらは構造化された上でチャット検索・要約に利用されています。
 """)
 
-# ✅ Google Drive接続（secretsから）
+# ✅ 出典一覧の取得関数
 def get_drive_service():
     creds = Credentials.from_service_account_info(
         st.secrets["gsheets_service_account"],
@@ -21,7 +21,6 @@ def get_drive_service():
     )
     return build("drive", "v3", credentials=creds)
 
-# ✅ .txtファイルの出典一覧を取得
 def list_txt_sources(folder_id, service):
     sources = set()
     folders_to_search = [folder_id]
@@ -39,19 +38,25 @@ def list_txt_sources(folder_id, service):
                 parent = service.files().get(fileId=parent_id, fields="name").execute()
                 folder_name = parent["name"]
                 base_name = file["name"].replace(".txt", "")
-                full_path = f"{folder_name}/{base_name}"
-                sources.add(full_path)
+                sources.add(f"{folder_name}/{base_name}")
     return sorted(sources)
 
-# ✅ Driveから出典を取得・表示
-INPUT_FOLDER_ID = st.secrets["kiite-gikai"]["GOOGLE_DRIVE_FOLDER_ID"]  # 👈 secrets に登録されている前提
-
+# ✅ Drive接続・出典一覧表示
 try:
+    folder_id = st.secrets["kiite-gikai"]["GOOGLE_DRIVE_FOLDER_ID"]
     drive_service = get_drive_service()
-    source_list = list_txt_sources(INPUT_FOLDER_ID, drive_service)
+    source_list = list_txt_sources(folder_id, drive_service)
 
-    with st.expander("📂 議事録の出典一覧を表示", expanded=False):
+    with st.expander("📂 議事録の出典一覧（クリックで表示）", expanded=False):
         for path in source_list:
             st.markdown(f"- {path}")
+
 except Exception as e:
     st.warning(f"⚠️ 出典一覧を取得できませんでした: {e}")
+
+# ✅ フッター
+st.caption("""
+⚠️ 回答は生成AIによるものであり、正確性を保証するものではありません。  
+🙌 本プロジェクトは個人により運営されています。ご支援いただける方はぜひこちらから：  
+[💛 codocで支援する](https://codoc.jp/sites/p8cEFlTZQA/entries/MMZnODc1dw)
+""")
