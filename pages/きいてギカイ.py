@@ -15,7 +15,7 @@ import streamlit as st
 st.set_page_config(page_title="きいてギカイやまぐち（β）", layout="wide", page_icon="📜")
 
 # ✅ セッションステートの初期化
-for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_generating", "input", "input_value", "suggestions_sampled", "qa_pairs"]:
+for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_generating", "input", "input_value", "suggestions_sampled", "qa_pairs", "clarified"]:
     if key not in st.session_state:
         if key in ["query", "last_answer", "input", "input_value"]:
             st.session_state[key] = ""
@@ -337,15 +337,15 @@ if st.session_state.input and not st.session_state.get("clarified", False):
     clarify_result = clarify_query(st.session_state.input)
 
     if clarify_result["ambiguous"] and clarify_result["rewritten_query"]:
-        st.info(f"👇 より正確に検索するため、以下の質問に置き換えるのはいかがですか？\n\n**→ {clarify_result['rewritten_query']}**")
+        st.info(f"👇 より正確な検索のため、以下の質問に置き換えるのはいかがでしょうか？\n\n**→ {clarify_result['rewritten_query']}**")
 
         col1, col2 = st.columns(2)
-        if col1.button("🔁 置き換えて検索する"):
+        if col1.button("🔁 置き換えて検索"):
             st.session_state.input_value = clarify_result["rewritten_query"]
             st.session_state.clarified = True
             st.session_state.send_now = True
             st.rerun()
-        if col2.button("🙅 このまま検索"):
+        if col2.button("👍 入力した検索文のままで検索"):
             st.session_state.clarified = True
             st.session_state.send_now = True
             st.rerun()
