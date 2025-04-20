@@ -122,6 +122,27 @@ def on_enter():
     if st.session_state.input.strip():
         st.session_state.send_now = True
 
+# clarify機能（質問があいまいなときのフォローO
+def clarify_query(user_query):
+    clarify_prompt = gikai_pair_prompt = load_prompt("gikai_clarify_prompt.txt")
+    messages = [
+        {"role": "system", "content": clarify_prompt},
+        {"role": "user", "content": f"【質問】{user_query}"}
+    ]
+    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=messages,
+            temperature=0
+        )
+        content = response.choices[0].message.content.strip()
+        result = json.loads(content)
+        return result
+    except Exception as e:
+        st.error(f"Clarifyエラー: {e}")
+        return {"ambiguous": False, "reason": "", "rewritten_query": ""}
+
 # 議事録データにアクセスして関連発言を出力
 def search_faiss_and_respond(query, top_k=5):
     import tempfile
@@ -310,6 +331,27 @@ for i, s in enumerate(st.session_state.suggestions_sampled):
             st.session_state.qa_pairs = results["qa_pairs"]
         st.session_state.is_generating = False
         st.rerun()
+
+# Clarifyプロンプトの確認
+if st.session_state.input and not st.session_state.get("clarified", False):
+    clarify_result = clarify_query(st.session_state.input)
+
+    if clarify_result["ambiguous"] and clarify_result["rewritten_query"]:
+        st.warning(f"❓ ご質問はややあいまいかもしれません（理由：{clarify_result['reason']}）")
+        st.info(f"👇 より正確に検索するため、以下の質問に置き換えてもよいですか？\n\n**→ {clarify_result['rewritten_query']}**")
+
+        col1, col2 = st.columns(2)
+        if col1.button("🔁 置き換えて検索する"):
+            st.session_state.input = clarify_result["rewritten_query"]
+            st.session_state.input_value = clarify_result["rewritten_query"]
+            st.session_state.clarified = True
+            st.session_state.send_now = True
+            st.rerun()
+        if col2.button("🙅 このまま検索"):
+            st.session_state.clarified = True
+            st.session_state.send_now = True
+            st.rerun()
+        st.stop()
 
 # --- 送信処理（Enter or サジェスト選択時） ---
 if st.session_state.input and st.session_state.send_now:
