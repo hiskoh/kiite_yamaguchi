@@ -221,7 +221,7 @@ def search_faiss_and_respond(query, top_k=5):
     gikai_pair_prompt = load_prompt("gikai_pair_summary.txt")
     summary_overall_prompt = load_prompt("gikai_summary_overall.txt")
 
-    summary_overall = "⚠️ 要約対象のQ/Aペアが見つかりませんでした。"
+    summary_overall = "⚠️ 情報が見つかりませんでした。"
     # ✅ Q/Aペアの個別要約
     summary_per_pair = []
     for pair in pair_matches:
@@ -259,7 +259,7 @@ def search_faiss_and_respond(query, top_k=5):
         except Exception as e:
             summary_overall = f"⚠️ 全体サマリ生成失敗：{e}"
     else:
-        summary_overall = "⚠️ 要約対象のQ/Aペアが見つかりませんでした。"
+        summary_overall = "⚠️ 情報が見つかりませんでした。"
 
     return {
         "matches": top_matches,
@@ -289,7 +289,7 @@ st.text_input(
 
 # --- サジェスト ---
 suggestions_master = [
-    "子育てが不安...",
+    "子育て政策について不安です...",
     "学校教育について気になる",
     "行政のDXって何か話題になっている？"
 ]
@@ -325,16 +325,14 @@ if st.session_state.input and st.session_state.send_now:
 
 
 # --- 回答欄 ---
-st.markdown("#### 💡議会での発言にもとづく要約（複数の質疑応答から生成）")
+st.markdown("#### 💡議会質問のまとめ")
 
 if st.session_state.is_generating:
     st.info("⏳ 回答中... 少々お待ちください")
-elif not st.session_state.qa_pairs:
-    st.warning("⚠️ 要約対象のQ/Aペアが見つかりませんでした。")
-else:
+elif st.session_state.last_answer and st.session_state.qa_pairs:
     st.success(st.session_state.last_answer)
 
-    st.markdown("#### 📂 各質疑応答の要約と原文")
+    st.markdown("#### 📂 各質問の要約と原文")
     for i, pair in enumerate(st.session_state.qa_pairs, start=1):
         summary = pair.get("summary", "").strip()
         if not summary:
@@ -349,9 +347,8 @@ else:
         for a in pair.get("A", []):
             with st.expander(f"🔵【答弁】{a.get('speaker_role')} {a.get('speaker')}（{a.get('source_file')}）"):
                 st.markdown(a.get("text", ""))
-
-    else:
-        st.info("関連する質疑応答の出典は見つかりませんでした。")
+elif st.session_state.send_now or st.session_state.input.strip() or st.session_state.query:
+    st.warning("⚠️ 情報が見つかりませんでした。")
 
 # --- フッター 
 st.divider() 
