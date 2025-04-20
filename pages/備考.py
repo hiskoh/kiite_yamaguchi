@@ -33,7 +33,7 @@ def list_txt_sources(folder_id, service):
         for file in response.get("files", []):
             if file["mimeType"] == "application/vnd.google-apps.folder":
                 folders_to_search.append(file["id"])
-            elif file["mimeType"] == "text/plain" and file["name"].endswith(".txt"):
+            elif file["mimeType"] == "text/plain" and file["name"].endswith(".index"):
                 parent_id = file["parents"][0]
                 parent = service.files().get(fileId=parent_id, fields="name").execute()
                 folder_name = parent["name"]
