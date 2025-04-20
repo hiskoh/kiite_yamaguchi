@@ -43,7 +43,7 @@ def list_txt_sources(folder_id, service):
 
 # ✅ Drive接続・出典一覧表示
 try:
-    folder_id = st.secrets["kiite-gikai"]["GOOGLE_DRIVE_FOLDER_ID"]
+    folder_id = st.secrets["kiite-gikai"]["GOOGLE_GIKAI_DATA_ID"]
     drive_service = get_drive_service()
     source_list = list_txt_sources(folder_id, drive_service)
 
