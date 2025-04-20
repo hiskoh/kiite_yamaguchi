@@ -15,7 +15,7 @@ import streamlit as st
 st.set_page_config(page_title="きいてギカイやまぐち（β）", layout="wide", page_icon="📜")
 
 # ✅ セッションステートの初期化
-for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_generating", "input", "input_value", "suggestions_sampled"]:
+for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_generating", "input", "input_value", "suggestions_sampled", "qa_pairs"]:
     if key not in st.session_state:
         if key in ["query", "last_answer", "input", "input_value"]:
             st.session_state[key] = ""
