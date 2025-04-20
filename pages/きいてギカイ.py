@@ -255,7 +255,7 @@ def search_faiss_and_respond(query, top_k=5):
                 model="gpt-3.5-turbo",
                 messages=messages
             )
-            summary = resp.choices[0].message.content.strip()
+            summary_overall  = resp.choices[0].message.content.strip()
         except Exception as e:
             summary_overall = f"⚠️ 全体サマリ生成失敗：{e}"
     else:
@@ -325,19 +325,22 @@ if st.session_state.input and st.session_state.send_now:
 
 
 # --- 回答欄 ---
-st.markdown("#### 💡議会の発言にもとづく要約")
+st.markdown("#### 💡議会での発言にもとづく要約（複数の質疑応答から生成）")
+
 if st.session_state.is_generating:
     st.info("⏳ 回答中... 少々お待ちください")
-elif st.session_state.last_answer:
-    st.success(st.session_state.last_answer)
-    
-    # --- 原文チャンク表示（質問＋答弁のペア表示）
-    st.markdown("#### 💡全体の要約（複数の質疑応答から生成）")
+elif not st.session_state.qa_pairs:
+    st.warning("⚠️ 要約対象のQ/Aペアが見つかりませんでした。")
+else:
     st.success(st.session_state.last_answer)
 
-    st.markdown("#### 🗂 各質疑応答の要約と原文")
+    st.markdown("#### 📂 各質疑応答の要約と原文")
     for i, pair in enumerate(st.session_state.qa_pairs, start=1):
-        st.markdown(f"---\n### {i}. {pair.get('summary', '（要約なし）')}")
+        summary = pair.get("summary", "").strip()
+        if not summary:
+            continue
+
+        st.markdown(f"---\n### {i}. {summary}")
         
         for q in pair.get("Q", []):
             with st.expander(f"🟢【質問】{q.get('speaker_role')} {q.get('speaker')}（{q.get('source_file')}）"):
@@ -346,6 +349,7 @@ elif st.session_state.last_answer:
         for a in pair.get("A", []):
             with st.expander(f"🔵【答弁】{a.get('speaker_role')} {a.get('speaker')}（{a.get('source_file')}）"):
                 st.markdown(a.get("text", ""))
+
     else:
         st.info("関連する質疑応答の出典は見つかりませんでした。")
 
