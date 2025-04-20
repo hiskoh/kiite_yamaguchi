@@ -332,7 +332,7 @@ if st.session_state.is_generating:
 elif st.session_state.last_answer and st.session_state.qa_pairs:
     st.success(st.session_state.last_answer)
 
-    st.markdown("---\n\n\#### 📂 各質問の要約と原文")
+    st.markdown("---\n\n#### 📂 各質問の要約と原文")
     for i, pair in enumerate(st.session_state.qa_pairs, start=1):
         summary = pair.get("summary", "").strip()
         if not summary:
