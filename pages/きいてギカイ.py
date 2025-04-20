@@ -338,7 +338,7 @@ elif st.session_state.last_answer and st.session_state.qa_pairs:
         if not summary:
             continue
 
-        st.markdown(f"##### {i}. {summary}")
+        st.markdown(f"---\n\n##### {i}. {summary}")
         
         for q in pair.get("Q", []):
             with st.expander(f"🟢【質問】{q.get('speaker_role')} {q.get('speaker')}（{q.get('source_file')}）"):
