@@ -17,6 +17,11 @@ st.set_page_config(page_title="きいてギカイやまぐち（β）", layout="
 #取得するチャンク数（≒類似度の高い議会答弁を取得する際、何件まで取得するかを制御）
 top_k = 6
 
+#使用するChatGPTのモデル・精度
+GPT_MODEL = "gpt-4.1-mini"
+GPT_TEMPERATURE = 0.1
+
+
 # ✅ セッションステートの初期化
 for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_generating", "input", "input_value", "suggestions_sampled", "qa_pairs", "clarified", "clarify_active"]:
     if key not in st.session_state:
@@ -137,9 +142,9 @@ def clarify_query(user_query):
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
     try:
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=GPT_MODEL,
             messages=messages,
-            temperature=0
+            temperature=GPT_TEMPERATURE
         )
         content = response.choices[0].message.content.strip()
         result = json.loads(content)
@@ -260,8 +265,9 @@ def search_faiss_and_respond(query, top_k):
                 {"role": "user", "content": qa_context}
             ]
             resp = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=messages
+                model=GPT_MODEL,
+                messages=messages,
+                temperature=GPT_TEMPERATURE
             )
             summary = resp.choices[0].message.content.strip()
         except Exception as e:
@@ -278,8 +284,9 @@ def search_faiss_and_respond(query, top_k):
                 {"role": "user", "content": context}
             ]
             resp = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=messages
+                model=GPT_MODEL,
+                messages=messages,
+                temperature=GPT_TEMPERATURE
             )
             summary_overall  = resp.choices[0].message.content.strip()
         except Exception as e:
