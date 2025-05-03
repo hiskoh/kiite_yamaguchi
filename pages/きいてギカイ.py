@@ -336,6 +336,13 @@ if not st.session_state.get("clarify_active", False):
                 st.session_state.last_answer = results["summary"]
                 st.session_state.last_matches = results["matches"]
                 st.session_state.qa_pairs = results["qa_pairs"]
+                
+                # ログ記録
+                try:
+                    log_to_gsheet(s, results["summary"])
+                except Exception as e:
+                    st.warning(f"⚠️ ログ記録に失敗しました: {e}")
+                    
             st.session_state.is_generating = False
             st.rerun()
 
@@ -374,6 +381,13 @@ if st.session_state.input and st.session_state.send_now:
         st.session_state.last_answer = results["summary"]
         st.session_state.last_matches = results["matches"]
         st.session_state.qa_pairs = results["qa_pairs"]
+        
+        # ログ記録
+        try:
+            log_to_gsheet(st.session_state.input, results["summary"])
+        except Exception as e:
+            st.warning(f"⚠️ ログ記録に失敗しました: {e}")
+            
     st.session_state.input_value = ""
     st.session_state.is_generating = False
 
