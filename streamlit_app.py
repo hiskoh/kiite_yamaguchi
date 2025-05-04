@@ -156,10 +156,10 @@ st.text_input("", key="input", value=st.session_state.input_value, placeholder="
 cols = st.columns(3)
 for i, s in enumerate(st.session_state.suggestions_sampled):
     if cols[i].button(s, key=f"sugg_{i}"):
-        st.session_state.input = s
         st.session_state.input_value = s
-        st.session_state.send_now = True
-        st.session_state.clarified = False
+        st.session_state.input_query = s
+        st.session_state.send_now = False
+        st.session_state.is_generating = True
         st.session_state.clarify_active = False
         st.rerun()
 
