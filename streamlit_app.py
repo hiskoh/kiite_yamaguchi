@@ -30,7 +30,7 @@ for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_ge
             st.session_state[key] = False
 
 # ✅ 同意画面
-if not st.session_state.agreed:⛰
+if not st.session_state.agreed:
     st.title("⛰きいてミライやまぐち（β）")
 
     st.markdown("""
