@@ -4,13 +4,20 @@ import numpy as np
 from datetime import datetime
 from openai import OpenAI
 from googleapiclient.discovery import build
-from google.oauth2.service_account import Credentials
 from googleapiclient.http import MediaIoBaseDownload
-import gspread
+from google.oauth2.service_account import Credentials
 from oauth2client.service_account import ServiceAccountCredentials
+import gspread
 
 # ✅ ページ設定
 st.set_page_config(page_title="きいてミライ（β）", layout="wide", page_icon="👤")
+
+#取得するチャンク数（≒類似度の高い議会答弁を取得する際、何件まで取得するかを制御）
+top_k = 6
+
+#使用するChatGPTのモデル・精度
+GPT_MODEL = "gpt-4.1-mini"
+GPT_TEMPERATURE = 0.1
 
 # ✅ セッションステート初期化
 for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_generating", "input", "input_value", "clarified", "clarify_active", "suggestions_sampled"]:
@@ -22,22 +29,27 @@ for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_ge
         else:
             st.session_state[key] = False
 
-# ✅ クライアント
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-
 # ✅ 同意画面
 if not st.session_state.agreed:
-    st.title("👤 きいてミライ（β）")
+    st.title("📜きいてギカイやまぐち（β）")
+
     st.markdown("""
-    ### ご利用にあたって
-    - このチャットでは、市長の発言を検索・要約して閲覧できます。
-    - **個人情報の入力は控えてください。**
-    - チャット内容は記録されます。
+    ### ご利用にあたってのご案内
+
+    - このチャットでは、山口市議会の議事録をもとに、議会でどんな議論が行われているかを知ることができます。  
+    - **個人情報（氏名・住所・連絡先など）の入力は行わないでください。**  
+    - チャット内容は記録されます。内容の記録に同意された方のみ、チャットをご利用ください。
     """)
-    if st.button("✅ 同意してはじめる"):
+    
+    st.warning("このチャットを利用するには、以下の内容に同意いただく必要があります。")
+    
+    if st.button("✅ 同意してチャットをはじめる"):
         st.session_state.agreed = True
-        st.rerun()
+        st.rerun() 
     st.stop()
+
+# ✅ Chatモード（同意済）
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # ✅ プロンプト読み込み
 @st.cache_data
@@ -55,9 +67,9 @@ def clarify_query(user_query):
     ]
     try:
         response = client.chat.completions.create(
-            model="gpt-4-turbo",
+            model=GPT_MODEL,
             messages=messages,
-            temperature=0.3
+            temperature=GPT_TEMPERATURE
         )
         content = response.choices[0].message.content.strip()
         return json.loads(content)
@@ -68,7 +80,7 @@ def clarify_query(user_query):
 # ✅ Google Drive から FAISS index & meta 読み込み
 @st.cache_resource
 def load_faiss_index_and_meta():
-    folder_id = st.secrets["kiite_mirai"]["1LUqtmfC5NtXnYRgLIpYxz9L5wP3S8KgE"]
+    folder_id = st.secrets["kiite_mirai"]["GOOGLE_MIRAI_DATA_ID"]
     creds = Credentials.from_service_account_info(st.secrets["gsheets_service_account"], scopes=["https://www.googleapis.com/auth/drive"])
     service = build("drive", "v3", credentials=creds)
 
@@ -91,7 +103,7 @@ def load_faiss_index_and_meta():
 
 # ✅ 類似チャンク検索＋要約
 @st.cache_data(show_spinner=False)
-def search_chunks(query, top_k=5):
+def search_chunks(query):
     index, meta = load_faiss_index_and_meta()
     if index is None or index.ntotal == 0:
         return []
@@ -113,7 +125,7 @@ def search_chunks(query, top_k=5):
             m["summary"] = f"⚠️ 要約失敗: {e}"
     return matches
 
-# ✅ Google Sheets 連携
+# ✅ ログ記録
 
 def get_gspread_client():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -122,57 +134,50 @@ def get_gspread_client():
 
 def log_to_gsheet(question, answer):
     client_gs = get_gspread_client()
-    sheet = client_gs.open_by_key(st.secrets["kiite_mirai"]["GOOGLE_MIRAI_LOG_SHEET_ID"]).worksheet("logs")
+    sheet = client_gs.open_by_key(st.secrets["kiite-mirai"]["GOOGLE_MIRAI_LOG_SHEET_ID"]).worksheet("logs")
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     sheet.append_row([now, question, answer])
 
 # ✅ UI本体
 st.title("👤 きいてミライ（β）")
 
-st.markdown("---\n\n#### 💬 市長に関する質問を入力")
-st.text_input("", key="input", value=st.session_state.input_value, placeholder="例：防災に関する市長の発言はありますか？", on_change=lambda: st.session_state.update(send_now=True))
-
 # ✅ サジェスト表示
 suggestions_master = [
     "防災に関する市長の発言はありますか？",
-    "地域交通や移動手段に関する施策は？",
-    "子育て支援について市長はどう述べていますか？"
+    "子育て支援の方針について教えて",
+    "地域活性化に向けた取り組みは？"
 ]
 if not st.session_state.suggestions_sampled:
     st.session_state.suggestions_sampled = random.sample(suggestions_master, k=3)
 
+st.markdown("---\n\n#### 🔊 サジェストから選ぶ")
 cols = st.columns(3)
 for i, s in enumerate(st.session_state.suggestions_sampled):
-    if cols[i].button(f"❓ {s}", key=f"sugg_{i}"):
+    if cols[i].button(s, key=f"sugg_{i}"):
+        st.session_state.input = s
         st.session_state.input_value = s
-        st.session_state.query = s
-        st.session_state.send_now = False
-        st.session_state.is_generating = True
-        with st.spinner(f"⏳ 「{s}」に回答中..."):
-            matches = search_chunks(s)
-            st.session_state.last_matches = matches
-            st.session_state.last_answer = "\n".join(f"- {m.get('topic', '未分類')}: {m['summary']}" for m in matches)
-            try:
-                log_to_gsheet(s, st.session_state.last_answer)
-            except Exception as e:
-                st.warning(f"⚠️ ログ記録に失敗しました: {e}")
-        st.session_state.is_generating = False
+        st.session_state.send_now = True
+        st.session_state.clarified = False
+        st.session_state.clarify_active = False
         st.rerun()
+
+st.markdown("---\n\n#### 💬 市長に関する質問を入力")
+st.text_input("", key="input", value=st.session_state.input_value, placeholder="例：防災に関する市長の発言はありますか？", on_change=lambda: st.session_state.update(send_now=True))
 
 # ✅ clarify 判定
 if st.session_state.input and not st.session_state.clarified:
     result = clarify_query(st.session_state.input)
     if result["ambiguous"]:
         st.session_state.clarify_active = True
-        st.info(f"👇 {result['reason']} → **{result['rewritten_query']}**")
+        st.info(f"\ud83d\udc47 {result['reason']} → **{result['rewritten_query']}**")
         col1, col2 = st.columns(2)
-        if col1.button("🔁 置き換えて検索"):
+        if col1.button("\ud83d\udd01 置き換えて検索"):
             st.session_state.input = result['rewritten_query']
             st.session_state.clarified = True
             st.session_state.send_now = True
             st.session_state.clarify_active = False
             st.rerun()
-        if col2.button("🔜 元の文で続行"):
+        if col2.button("\ud83d\udd1c 元の文で続行"):
             st.session_state.clarified = True
             st.session_state.send_now = True
             st.session_state.clarify_active = False
@@ -193,8 +198,8 @@ if st.session_state.input and st.session_state.send_now:
             log_to_gsheet(st.session_state.input, st.session_state.last_answer)
         except Exception as e:
             st.warning(f"⚠️ ログ記録に失敗しました: {e}")
-    st.session_state.input_value = ""
-    st.session_state.is_generating = False
+        st.session_state.input_value = ""
+        st.session_state.is_generating = False
 
 # ✅ 出力表示
 st.markdown("#### 💡 要約まとめ")
@@ -204,7 +209,7 @@ elif st.session_state.last_answer:
     st.success(st.session_state.last_answer)
     st.markdown("---\n\n#### 📂 詳細内容")
     for m in st.session_state.last_matches:
-        with st.expander(f"🗂️ {m.get('topic', '未分類')}（{m.get('source_file', '')}）"):
+        with st.expander(f"\ud83d\uddc2️ {m.get('topic', '未分類')}（{m.get('source_file', '')}）"):
             st.markdown(m["text"])
 
 st.divider()
