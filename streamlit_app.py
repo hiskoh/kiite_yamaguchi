@@ -10,7 +10,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 
 # ✅ ページ設定
-st.set_page_config(page_title="きいてミライ（β）", layout="wide", page_icon="👤")
+st.set_page_config(page_title="きいてミライ（β）", layout="wide", page_icon="⛰")
 
 #取得するチャンク数（≒類似度の高い議会答弁を取得する際、何件まで取得するかを制御）
 top_k = 6
@@ -30,8 +30,8 @@ for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_ge
             st.session_state[key] = False
 
 # ✅ 同意画面
-if not st.session_state.agreed:
-    st.title("📜きいてギカイやまぐち（β）")
+if not st.session_state.agreed:⛰
+    st.title("⛰きいてミライやまぐち（β）")
 
     st.markdown("""
     ### ご利用にあたってのご案内
@@ -169,7 +169,7 @@ if st.session_state.input and not st.session_state.clarified:
     result = clarify_query(st.session_state.input)
     if result["ambiguous"]:
         st.session_state.clarify_active = True
-        st.info(f"\ud83d\udc47 {result['reason']} → **{result['rewritten_query']}**")
+        st.info(f"👉 {result['reason']} → **{result['rewritten_query']}**")
         col1, col2 = st.columns(2)
         if col1.button("\ud83d\udd01 置き換えて検索"):
             st.session_state.input = result['rewritten_query']
