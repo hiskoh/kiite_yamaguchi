@@ -1,17 +1,19 @@
 import streamlit as st
+import json, random, faiss, io
+import numpy as np
+from datetime import datetime
 from openai import OpenAI
+from googleapiclient.discovery import build
+from google.oauth2.service_account import Credentials
+from googleapiclient.http import MediaIoBaseDownload
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from datetime import datetime
-import random
 
 # ✅ ページ設定
-import streamlit as st
+st.set_page_config(page_title="きいてミライ（β）", layout="wide", page_icon="👤")
 
-st.set_page_config(page_title="きいてみらい山口", layout="wide")
-
-# ✅ セッションステートの初期化
-for key in ["agreed", "query", "send_now", "last_answer", "is_generating", "input", "input_value", "suggestions_sampled"]:
+# ✅ セッションステート初期化
+for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_generating", "input", "input_value", "clarified", "clarify_active", "suggestions_sampled"]:
     if key not in st.session_state:
         if key in ["query", "last_answer", "input", "input_value"]:
             st.session_state[key] = ""
@@ -20,35 +22,98 @@ for key in ["agreed", "query", "send_now", "last_answer", "is_generating", "inpu
         else:
             st.session_state[key] = False
 
-# ✅ プロンプト読み込み関数
-def load_prompt():
-    with open("prompts/system_prompt.txt", "r", encoding="utf-8") as f:
-        return f.read()
+# ✅ クライアント
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # ✅ 同意画面
 if not st.session_state.agreed:
-    st.title("🌞 きいてみらい山口")
-
+    st.title("👤 きいてミライ（β）")
     st.markdown("""
-    ### ご利用にあたってのご案内
-
-    - このチャットは、市民の関心や疑問をもとに、よくある質問を整理・可視化し、  
-      行政との新しいコミュニケーションの形をつくっていくことを目指して運営されています。  
-    - **個人情報（氏名・住所・連絡先など）の入力は行わないでください。**  
-    - チャット内容は記録されます。内容の記録に同意された方のみ、チャットをご利用ください。
+    ### ご利用にあたって
+    - このチャットでは、市長の発言を検索・要約して閲覧できます。
+    - **個人情報の入力は控えてください。**
+    - チャット内容は記録されます。
     """)
-    
-    st.warning("このチャットを利用するには、以下の内容に同意いただく必要があります。")
-    
-    if st.button("✅ 同意してチャットをはじめる"):
+    if st.button("✅ 同意してはじめる"):
         st.session_state.agreed = True
-        st.rerun() 
+        st.rerun()
     st.stop()
 
-# ✅ Chatモード（同意済）
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+# ✅ プロンプト読み込み
+@st.cache_data
+def load_prompt(name):
+    with open(f"prompts/{name}", "r", encoding="utf-8") as f:
+        return f.read()
 
-# 🔧 Google Sheets 接続
+# ✅ clarify機能
+@st.cache_data
+def clarify_query(user_query):
+    clarify_prompt = load_prompt("mirai_clarify_prompt.txt")
+    messages = [
+        {"role": "system", "content": clarify_prompt},
+        {"role": "user", "content": f"【質問】{user_query}"}
+    ]
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4-turbo",
+            messages=messages,
+            temperature=0.3
+        )
+        content = response.choices[0].message.content.strip()
+        return json.loads(content)
+    except Exception as e:
+        st.error(f"Clarifyエラー: {e}")
+        return {"ambiguous": False, "reason": "", "rewritten_query": ""}
+
+# ✅ Google Drive から FAISS index & meta 読み込み
+@st.cache_resource
+def load_faiss_index_and_meta():
+    folder_id = st.secrets["kiite_mirai"]["1LUqtmfC5NtXnYRgLIpYxz9L5wP3S8KgE"]
+    creds = Credentials.from_service_account_info(st.secrets["gsheets_service_account"], scopes=["https://www.googleapis.com/auth/drive"])
+    service = build("drive", "v3", credentials=creds)
+
+    def download(file_id):
+        request = service.files().get_media(fileId=file_id)
+        fh = io.BytesIO()
+        MediaIoBaseDownload(fh, request).next_chunk()
+        fh.seek(0)
+        return fh.read()
+
+    index, meta = None, []
+    response = service.files().list(q=f"'{folder_id}' in parents and trashed = false", fields="files(id, name)").execute()
+    files = {f["name"]: f["id"] for f in response["files"]}
+
+    if "mirai.index" in files and "mirai.meta.json" in files:
+        index = faiss.read_index(io.BytesIO(download(files["mirai.index"])))
+        meta = json.loads(download(files["mirai.meta.json"]).decode("utf-8"))
+
+    return index, meta
+
+# ✅ 類似チャンク検索＋要約
+@st.cache_data(show_spinner=False)
+def search_chunks(query, top_k=5):
+    index, meta = load_faiss_index_and_meta()
+    if index is None or index.ntotal == 0:
+        return []
+    vec = client.embeddings.create(model="text-embedding-ada-002", input=[query])
+    qvec = np.array(vec.data[0].embedding, dtype="float32").reshape(1, -1)
+    D, I = index.search(qvec, top_k)
+    matches = [meta[i] | {"score": float(D[0][j])} for j, i in enumerate(I[0]) if i >= 0]
+
+    summary_prompt = load_prompt("mirai_summary.txt")
+    for m in matches:
+        try:
+            messages = [
+                {"role": "system", "content": summary_prompt},
+                {"role": "user", "content": m["text"]}
+            ]
+            resp = client.chat.completions.create(model="gpt-4-turbo", messages=messages)
+            m["summary"] = resp.choices[0].message.content.strip()
+        except Exception as e:
+            m["summary"] = f"⚠️ 要約失敗: {e}"
+    return matches
+
+# ✅ Google Sheets 連携
 
 def get_gspread_client():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -57,101 +122,90 @@ def get_gspread_client():
 
 def log_to_gsheet(question, answer):
     client_gs = get_gspread_client()
-    sheet = client_gs.open_by_key(st.secrets["kiite-city"]["GOOGLE_LOG_SHEET_ID"]).worksheet("logs")
+    sheet = client_gs.open_by_key(st.secrets["kiite_mirai"]["GOOGLE_MIRAI_LOG_SHEET_ID"]).worksheet("logs")
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     sheet.append_row([now, question, answer])
 
-def load_city_data():
-    client_gs = get_gspread_client()
-    sheet = client_gs.open_by_key(st.secrets["kiite-city"]["GOOGLE_DATA_SHEET_ID"]).worksheet("data")
-    rows = sheet.get_all_records()
-    combined_info = ""
-    for row in rows:
-        combined_info += f"\n\n【{row['カテゴリ']} / {row['サブカテゴリ']}】{row['タイトル']}：{row['説明文']}"
-    return combined_info.strip()
+# ✅ UI本体
+st.title("👤 きいてミライ（β）")
 
-# ✅ Enter送信処理（テキスト確定時）
-def on_enter():
-    if st.session_state.input.strip():
-        st.session_state.send_now = True
+st.markdown("---\n\n#### 💬 市長に関する質問を入力")
+st.text_input("", key="input", value=st.session_state.input_value, placeholder="例：防災に関する市長の発言はありますか？", on_change=lambda: st.session_state.update(send_now=True))
 
-def ask_and_display_answer(user_query):
-    st.session_state.query = user_query
-    st.session_state.is_generating = True
-    with st.spinner(f"⏳ 「{user_query}」に回答中... 少々お待ちください"):
-        city_context = load_city_data()
-        system_prompt = f"{load_prompt()}\n\n{city_context}"
-        try:
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_query}
-                ]
-            )
-            answer = response.choices[0].message.content.strip()
-        except Exception as e:
-            answer = f"⚠️ エラーが発生しました：{e}"
-
-    log_to_gsheet(user_query, answer)
-    st.session_state.last_answer = answer
-    st.session_state.is_generating = False
-
-# 🔸 UI構成
-st.title("🌞 きいてみらい山口")
-
-# --- キャラクターとサジェスト ---
-#st.image("character.gif", width=100)
-
-st.write("") 
-
-# --- チャット欄（送信ボタンなし・Enter送信） ---
-st.markdown("#### 💬 質問してみよう")
-st.text_input(
-    label="",
-    key="input",
-    value=st.session_state.input_value,
-    placeholder="例：山口市の総合計画について教えて",
-    on_change=lambda: st.session_state.update(send_now=True)
-)
-
-# --- サジェスト ---
+# ✅ サジェスト表示
 suggestions_master = [
-    "山口市の課題は？",
-    "市役所の建て替えは？",
-    "山口市の人口は？"
+    "防災に関する市長の発言はありますか？",
+    "地域交通や移動手段に関する施策は？",
+    "子育て支援について市長はどう述べていますか？"
 ]
 if not st.session_state.suggestions_sampled:
     st.session_state.suggestions_sampled = random.sample(suggestions_master, k=3)
 
 cols = st.columns(3)
 for i, s in enumerate(st.session_state.suggestions_sampled):
-    if cols[i].button(f" {s}", key=f"sugg_{s}"):
+    if cols[i].button(f"❓ {s}", key=f"sugg_{i}"):
         st.session_state.input_value = s
         st.session_state.query = s
-        st.session_state.send_now = False   # ← 強制的に送信を止める
-        ask_and_display_answer(s)           # 即時回答（UX重視）
-        st.rerun()                          # 再描画して検索窓に反映
+        st.session_state.send_now = False
+        st.session_state.is_generating = True
+        with st.spinner(f"⏳ 「{s}」に回答中..."):
+            matches = search_chunks(s)
+            st.session_state.last_matches = matches
+            st.session_state.last_answer = "\n".join(f"- {m.get('topic', '未分類')}: {m['summary']}" for m in matches)
+            try:
+                log_to_gsheet(s, st.session_state.last_answer)
+            except Exception as e:
+                st.warning(f"⚠️ ログ記録に失敗しました: {e}")
+        st.session_state.is_generating = False
+        st.rerun()
 
-# --- 送信処理（Enter or サジェスト選択時） ---
+# ✅ clarify 判定
+if st.session_state.input and not st.session_state.clarified:
+    result = clarify_query(st.session_state.input)
+    if result["ambiguous"]:
+        st.session_state.clarify_active = True
+        st.info(f"👇 {result['reason']} → **{result['rewritten_query']}**")
+        col1, col2 = st.columns(2)
+        if col1.button("🔁 置き換えて検索"):
+            st.session_state.input = result['rewritten_query']
+            st.session_state.clarified = True
+            st.session_state.send_now = True
+            st.session_state.clarify_active = False
+            st.rerun()
+        if col2.button("🔜 元の文で続行"):
+            st.session_state.clarified = True
+            st.session_state.send_now = True
+            st.session_state.clarify_active = False
+            st.rerun()
+        st.stop()
+    else:
+        st.session_state.clarified = True
+
+# ✅ 検索処理
 if st.session_state.input and st.session_state.send_now:
     st.session_state.send_now = False
-    ask_and_display_answer(st.session_state.input)
+    st.session_state.is_generating = True
+    with st.spinner("⏳ 回答を生成中..."):
+        matches = search_chunks(st.session_state.input)
+        st.session_state.last_matches = matches
+        st.session_state.last_answer = "\n".join(f"- {m.get('topic', '未分類')}: {m['summary']}" for m in matches)
+        try:
+            log_to_gsheet(st.session_state.input, st.session_state.last_answer)
+        except Exception as e:
+            st.warning(f"⚠️ ログ記録に失敗しました: {e}")
     st.session_state.input_value = ""
+    st.session_state.is_generating = False
 
-# --- 回答欄 ---
-st.markdown("#### 💡回答はこちら")
+# ✅ 出力表示
+st.markdown("#### 💡 要約まとめ")
 if st.session_state.is_generating:
-    st.info("⏳ 回答中... 少々お待ちください")
+    st.info("⏳ 回答中です")
 elif st.session_state.last_answer:
     st.success(st.session_state.last_answer)
+    st.markdown("---\n\n#### 📂 詳細内容")
+    for m in st.session_state.last_matches:
+        with st.expander(f"🗂️ {m.get('topic', '未分類')}（{m.get('source_file', '')}）"):
+            st.markdown(m["text"])
 
-
-# --- フッター 
-st.divider() 
-
-st.caption("""
-⚠️ 回答は生成AIによるものであり、正確性を保証するものではありません。  
-🙌 本プロジェクトは個人により運営されています。ご支援いただける方はぜひこちらから：  
-[💛 codocで支援する](https://codoc.jp/sites/p8cEFlTZQA/entries/MMZnODc1dw)
-""")
+st.divider()
+st.caption("⚠️ 回答はAIによる要約です。内容の正確性は保証されません。")
