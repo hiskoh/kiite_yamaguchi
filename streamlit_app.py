@@ -10,7 +10,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 
 # ✅ ページ設定
-st.set_page_config(page_title="きいてミライ（β）", layout="wide", page_icon="⛰")
+st.set_page_config(page_title="きいてミライ（β）", layout="wide", page_icon="🏛️")
 
 #取得するチャンク数（≒類似度の高い議会答弁を取得する際、何件まで取得するかを制御）
 top_k = 6
@@ -31,7 +31,7 @@ for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_ge
 
 # ✅ 同意画面
 if not st.session_state.agreed:
-    st.title("⛰きいてミライやまぐち（β）")
+    st.title("🏛️きいてミライやまぐち（β）")
 
     st.markdown("""
     ### ご利用にあたってのご案内
@@ -171,13 +171,13 @@ if st.session_state.input and not st.session_state.clarified:
         st.session_state.clarify_active = True
         st.info(f"👉 {result['reason']} → **{result['rewritten_query']}**")
         col1, col2 = st.columns(2)
-        if col1.button("\ud83d\udd01 置き換えて検索"):
+        if col1.button("🔁 置き換えて検索"):
             st.session_state.input = result['rewritten_query']
             st.session_state.clarified = True
             st.session_state.send_now = True
             st.session_state.clarify_active = False
             st.rerun()
-        if col2.button("\ud83d\udd1c 元の文で続行"):
+        if col2.button("🔜 入力文のままで検索"):
             st.session_state.clarified = True
             st.session_state.send_now = True
             st.session_state.clarify_active = False
@@ -209,8 +209,12 @@ elif st.session_state.last_answer:
     st.success(st.session_state.last_answer)
     st.markdown("---\n\n#### 📂 詳細内容")
     for m in st.session_state.last_matches:
-        with st.expander(f"\ud83d\uddc2️ {m.get('topic', '未分類')}（{m.get('source_file', '')}）"):
+        with st.expander(f" {m.get('topic', '未分類')}（{m.get('source_file', '')}）"):
             st.markdown(m["text"])
 
 st.divider()
-st.caption("⚠️ 回答はAIによる要約です。内容の正確性は保証されません。")
+st.caption("""
+⚠️ 回答は生成AIによるものであり、正確性を保証するものではありません。  
+🙌 本プロジェクトは個人により運営されています。ご支援いただける方はぜひこちらから：  
+[💛 codocで支援する](https://codoc.jp/sites/p8cEFlTZQA/entries/MMZnODc1dw)
+""")
