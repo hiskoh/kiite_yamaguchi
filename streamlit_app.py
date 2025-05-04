@@ -12,7 +12,7 @@ import gspread
 # ✅ ページ設定
 st.set_page_config(page_title="きいてミライ（β）", layout="wide", page_icon="🏛️")
 
-#取得するチャンク数（≒類似度の高い議会答弁を取得する際、何件まで取得するかを制御）
+#取得するチャンク数（≒類似度の高い記録を取得する際、何件まで取得するかを制御）
 top_k = 6
 
 #使用するChatGPTのモデル・精度
@@ -36,7 +36,7 @@ if not st.session_state.agreed:
     st.markdown("""
     ### ご利用にあたってのご案内
 
-    - このチャットでは、山口市議会の議事録をもとに、議会でどんな議論が行われているかを知ることができます。  
+    - このチャットでは、山口市長の過去の発言（定例会見、議会での施政方針）をもとに、市長の見解を知ることができます。  
     - **個人情報（氏名・住所・連絡先など）の入力は行わないでください。**  
     - チャット内容は記録されます。内容の記録に同意された方のみ、チャットをご利用ください。
     """)
@@ -139,7 +139,7 @@ def log_to_gsheet(question, answer):
     sheet.append_row([now, question, answer])
 
 # ✅ UI本体
-st.title("👤 きいてミライ（β）")
+st.title("🏛️ きいてミライ（β）")
 
 # ✅ サジェスト表示
 suggestions_master = [
@@ -150,7 +150,9 @@ suggestions_master = [
 if not st.session_state.suggestions_sampled:
     st.session_state.suggestions_sampled = random.sample(suggestions_master, k=3)
 
-st.markdown("---\n\n#### 🔊 サジェストから選ぶ")
+st.markdown("---\n\n#### 💬 市長に関する質問を入力")
+st.text_input("", key="input", value=st.session_state.input_value, placeholder="例：防災に関する市長の発言はありますか？", on_change=lambda: st.session_state.update(send_now=True))
+
 cols = st.columns(3)
 for i, s in enumerate(st.session_state.suggestions_sampled):
     if cols[i].button(s, key=f"sugg_{i}"):
@@ -160,9 +162,6 @@ for i, s in enumerate(st.session_state.suggestions_sampled):
         st.session_state.clarified = False
         st.session_state.clarify_active = False
         st.rerun()
-
-st.markdown("---\n\n#### 💬 市長に関する質問を入力")
-st.text_input("", key="input", value=st.session_state.input_value, placeholder="例：防災に関する市長の発言はありますか？", on_change=lambda: st.session_state.update(send_now=True))
 
 # ✅ clarify 判定
 if st.session_state.input and not st.session_state.clarified:
