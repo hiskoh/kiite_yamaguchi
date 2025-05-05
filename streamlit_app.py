@@ -131,8 +131,15 @@ def search_faiss_and_respond(query):
 st.title("🏛️ きいてミライ（β）")
 
 # --- チャット欄（送信ボタンなし・Enter送信） ---
-st.markdown("---\n\n#### 💬 市長に関する質問を入力")
-st.text_input("", key="input", value=st.session_state.input_value, placeholder="例：防災に関する市長の発言はありますか？", on_change=lambda: st.session_state.update(send_now=True, input_value=st.session_state.input))
+st.markdown("---\n\n#### 💬 質問してみよう")
+st.text_input(
+    label="",
+    key="input",
+    value=st.session_state.input_value,
+    placeholder="例：インバウンド観光に対する取り組みは？",
+    on_change=lambda: st.session_state.update(send_now=True)
+)
+
 
 # --- サジェスト ---
 if not st.session_state.get("clarify_active", False):  
