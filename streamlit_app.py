@@ -153,7 +153,7 @@ if not st.session_state.get("clarify_active", False):
             st.session_state.is_generating = True
             st.session_state.clarify_active = False
             with st.spinner(f"⏳ 「{s}」に回答中... 少々お待ちください"):
-                results = search_faiss_and_respond(s)
+                results = search_faiss_and_respond(s, top_k)
                 st.session_state.last_answer = results["summary"]
                 st.session_state.last_matches = results["matches"]
                 
@@ -200,7 +200,6 @@ if st.session_state.input and st.session_state.send_now:
         results = search_faiss_and_respond(st.session_state.input, top_k)
         st.session_state.last_answer = results["summary"]
         st.session_state.last_matches = results["matches"]
-        st.session_state.qa_pairs = results["qa_pairs"]
         
         # ログ記録
         try:
