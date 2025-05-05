@@ -151,6 +151,9 @@ def search_faiss_and_respond(query):
             "summary": "🔍 関連する市長の発言は見つかりませんでした。"
         }
 
+    # 🔹 スコア上位抽出
+    top_matches = sorted(matches, key=lambda x: x["score"])[:top_k]
+    
     # 🧠 全体要約
     try:
         combined_text = "\n\n".join(m["text"] for m in matches)
