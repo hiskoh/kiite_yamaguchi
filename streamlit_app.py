@@ -101,16 +101,6 @@ def search_faiss_and_respond(query):
         fh.seek(0)
         return fh.read()
 
-    # 🔍 ファイル取得
-    response = service.files().list(q=f"'{gdrive_folder_id}' in parents and trashed = false", fields="files(id, name)").execute()
-    files = {f["name"]: f["id"] for f in response["files"]}
-
-    if "mirai.index" not in files or "mirai.meta.json" not in files:
-        return {
-            "matches": [],
-            "summary": "⚠️ インデックスまたはメタ情報が見つかりませんでした。"
-        }
-
     # 🔹 index/meta をマッピング
     index_files = list_index_meta_files(gdrive_folder_id)
     file_pairs = {}
