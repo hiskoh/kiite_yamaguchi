@@ -9,17 +9,12 @@ from google.oauth2.service_account import Credentials
 from oauth2client.service_account import ServiceAccountCredentials
 import gspread
 
-# ✅ ページ設定
 st.set_page_config(page_title="きいてミライ（β）", layout="wide", page_icon="🏛️")
 
-#取得するチャンク数（≒類似度の高い記録を取得する際、何件まで取得するかを制御）
 top_k = 6
-
-#使用するChatGPTのモデル・精度
 GPT_MODEL = "gpt-4.1-mini"
 GPT_TEMPERATURE = 0.1
 
-# ✅ セッションステート初期化
 for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_generating", "input", "input_value", "clarified", "clarify_active", "suggestions_sampled"]:
     if key not in st.session_state:
         if key in ["query", "last_answer", "input", "input_value"]:
@@ -29,10 +24,8 @@ for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_ge
         else:
             st.session_state[key] = False
 
-# ✅ 同意画面
 if not st.session_state.agreed:
     st.title("🏛️きいてミライやまぐち（β）")
-
     st.markdown("""
     ### ご利用にあたってのご案内
 
@@ -40,25 +33,29 @@ if not st.session_state.agreed:
     - **個人情報（氏名・住所・連絡先など）の入力は行わないでください。**  
     - チャット内容は記録されます。内容の記録に同意された方のみ、チャットをご利用ください。
     """)
-    
     st.warning("このチャットを利用するには、以下の内容に同意いただく必要があります。")
-    
     if st.button("✅ 同意してチャットをはじめる"):
         st.session_state.agreed = True
-        st.rerun() 
+        st.rerun()
     st.stop()
 
-# ✅ Chatモード（同意済）
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# ✅ プロンプト読み込み
-@st.cache_data
+def get_gspread_client():
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gsheets_service_account"], scope)
+    return gspread.authorize(creds)
+
+def log_to_gsheet(question, answer):
+    client_gs = get_gspread_client()
+    sheet = client_gs.open_by_key(st.secrets["kiite-mirai"]["GOOGLE_MIRAI_LOG_SHEET_ID"]).worksheet("logs")
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    sheet.append_row([now, question, answer])
+
 def load_prompt(name):
     with open(f"prompts/{name}", "r", encoding="utf-8") as f:
         return f.read()
 
-# ✅ clarify機能
-@st.cache_data
 def clarify_query(user_query):
     clarify_prompt = load_prompt("mirai_clarify_prompt.txt")
     messages = [
@@ -77,32 +74,24 @@ def clarify_query(user_query):
         st.error(f"Clarifyエラー: {e}")
         return {"ambiguous": False, "reason": "", "rewritten_query": ""}
 
-# ✅ Google Drive から FAISS index & meta 読み込み
-@st.cache_resource
 def load_faiss_index_and_meta():
     folder_id = st.secrets["kiite_mirai"]["GOOGLE_MIRAI_DATA_ID"]
     creds = Credentials.from_service_account_info(st.secrets["gsheets_service_account"], scopes=["https://www.googleapis.com/auth/drive"])
     service = build("drive", "v3", credentials=creds)
-
     def download(file_id):
         request = service.files().get_media(fileId=file_id)
         fh = io.BytesIO()
         MediaIoBaseDownload(fh, request).next_chunk()
         fh.seek(0)
         return fh.read()
-
     index, meta = None, []
     response = service.files().list(q=f"'{folder_id}' in parents and trashed = false", fields="files(id, name)").execute()
     files = {f["name"]: f["id"] for f in response["files"]}
-
     if "mirai.index" in files and "mirai.meta.json" in files:
         index = faiss.read_index(io.BytesIO(download(files["mirai.index"])))
         meta = json.loads(download(files["mirai.meta.json"]).decode("utf-8"))
-
     return index, meta
 
-# ✅ 類似チャンク検索＋要約
-@st.cache_data(show_spinner=False)
 def search_chunks(query):
     index, meta = load_faiss_index_and_meta()
     if index is None or index.ntotal == 0:
@@ -111,7 +100,6 @@ def search_chunks(query):
     qvec = np.array(vec.data[0].embedding, dtype="float32").reshape(1, -1)
     D, I = index.search(qvec, top_k)
     matches = [meta[i] | {"score": float(D[0][j])} for j, i in enumerate(I[0]) if i >= 0]
-
     summary_prompt = load_prompt("mirai_summary.txt")
     for m in matches:
         try:
@@ -125,23 +113,8 @@ def search_chunks(query):
             m["summary"] = f"⚠️ 要約失敗: {e}"
     return matches
 
-# ✅ ログ記録
-
-def get_gspread_client():
-    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gsheets_service_account"], scope)
-    return gspread.authorize(creds)
-
-def log_to_gsheet(question, answer):
-    client_gs = get_gspread_client()
-    sheet = client_gs.open_by_key(st.secrets["kiite-mirai"]["GOOGLE_MIRAI_LOG_SHEET_ID"]).worksheet("logs")
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    sheet.append_row([now, question, answer])
-
-# ✅ UI本体
 st.title("🏛️ きいてミライ（β）")
 
-# ✅ サジェスト表示
 suggestions_master = [
     "防災に関する市長の発言はありますか？",
     "子育て支援の方針について教えて",
@@ -157,13 +130,21 @@ cols = st.columns(3)
 for i, s in enumerate(st.session_state.suggestions_sampled):
     if cols[i].button(s, key=f"sugg_{i}"):
         st.session_state.input_value = s
-        st.session_state.input_query = s
-        st.session_state.send_now = False
+        st.session_state.query = s
+        st.session_state.send_now = True
         st.session_state.is_generating = True
         st.session_state.clarify_active = False
+        with st.spinner(f"⏳ 「{s}」に回答中... 少々お待ちください"):
+            matches = search_chunks(s)
+            st.session_state.last_matches = matches
+            st.session_state.last_answer = "\n".join(f"- {m.get('topic', '未分類')}: {m['summary']}" for m in matches)
+            try:
+                log_to_gsheet(s, st.session_state.last_answer)
+            except Exception as e:
+                st.warning(f"⚠️ ログ記録に失敗しました: {e}")
+        st.session_state.is_generating = False
         st.rerun()
 
-# ✅ clarify 判定
 if st.session_state.input and not st.session_state.clarified:
     result = clarify_query(st.session_state.input)
     if result["ambiguous"]:
@@ -172,6 +153,7 @@ if st.session_state.input and not st.session_state.clarified:
         col1, col2 = st.columns(2)
         if col1.button("🔁 置き換えて検索"):
             st.session_state.input = result['rewritten_query']
+            st.session_state.input_value = result['rewritten_query']
             st.session_state.clarified = True
             st.session_state.send_now = True
             st.session_state.clarify_active = False
@@ -185,11 +167,10 @@ if st.session_state.input and not st.session_state.clarified:
     else:
         st.session_state.clarified = True
 
-# ✅ 検索処理
 if st.session_state.input and st.session_state.send_now:
     st.session_state.send_now = False
     st.session_state.is_generating = True
-    with st.spinner("⏳ 回答を生成中..."):
+    with st.spinner(f"⏳ 「{st.session_state.input}」に回答中... 少々お待ちください"):
         matches = search_chunks(st.session_state.input)
         st.session_state.last_matches = matches
         st.session_state.last_answer = "\n".join(f"- {m.get('topic', '未分類')}: {m['summary']}" for m in matches)
@@ -197,10 +178,9 @@ if st.session_state.input and st.session_state.send_now:
             log_to_gsheet(st.session_state.input, st.session_state.last_answer)
         except Exception as e:
             st.warning(f"⚠️ ログ記録に失敗しました: {e}")
-        st.session_state.input_value = ""
-        st.session_state.is_generating = False
+    st.session_state.input_value = ""
+    st.session_state.is_generating = False
 
-# ✅ 出力表示
 st.markdown("#### 💡 要約まとめ")
 if st.session_state.is_generating:
     st.info("⏳ 回答中です")
