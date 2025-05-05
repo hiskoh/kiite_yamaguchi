@@ -92,7 +92,7 @@ def load_faiss_index_and_meta():
         meta = json.loads(download(files["mirai.meta.json"]).decode("utf-8"))
     return index, meta
 
-def search_chunks_and_respond(query):
+def ‎search_faiss_and_respond(query):
     index, meta = load_faiss_index_and_meta()
     if index is None or index.ntotal == 0:
         return {
