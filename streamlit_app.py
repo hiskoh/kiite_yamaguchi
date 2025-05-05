@@ -124,7 +124,7 @@ if not st.session_state.suggestions_sampled:
     st.session_state.suggestions_sampled = random.sample(suggestions_master, k=3)
 
 st.markdown("---\n\n#### 💬 市長に関する質問を入力")
-st.text_input("", key="input", value=st.session_state.input_value, placeholder="例：防災に関する市長の発言はありますか？", on_change=lambda: st.session_state.update(send_now=True))
+st.text_input("", key="input", value=st.session_state.input_value, placeholder="例：防災に関する市長の発言はありますか？", on_change=lambda: st.session_state.update(send_now=True, input_value=st.session_state.input))
 
 cols = st.columns(3)
 for i, s in enumerate(st.session_state.suggestions_sampled):
@@ -152,7 +152,6 @@ if st.session_state.input and not st.session_state.clarified:
         st.info(f"👉 {result['reason']} → **{result['rewritten_query']}**")
         col1, col2 = st.columns(2)
         if col1.button("🔁 置き換えて検索"):
-            st.session_state.input = result['rewritten_query']
             st.session_state.input_value = result['rewritten_query']
             st.session_state.clarified = True
             st.session_state.send_now = True
