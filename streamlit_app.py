@@ -11,7 +11,7 @@ import gspread
 
 st.set_page_config(page_title="きいてミライ（β）", layout="wide", page_icon="🏛️")
 
-top_k = 6
+top_k = 3
 GPT_MODEL = "gpt-4.1-mini"
 GPT_TEMPERATURE = 0.1
 
@@ -92,104 +92,136 @@ def load_faiss_index_and_meta():
         meta = json.loads(download(files["mirai.meta.json"]).decode("utf-8"))
     return index, meta
 
-def search_chunks(query):
+def search_chunks_and_respond(query):
     index, meta = load_faiss_index_and_meta()
     if index is None or index.ntotal == 0:
-        return []
+        return {
+            "matches": [],
+            "summary": "🔍 関連する市長の発言は見つかりませんでした。"
+        }
+
+    # ベクトル化
     vec = client.embeddings.create(model="text-embedding-ada-002", input=[query])
     qvec = np.array(vec.data[0].embedding, dtype="float32").reshape(1, -1)
+
+    # 検索
     D, I = index.search(qvec, top_k)
     matches = [meta[i] | {"score": float(D[0][j])} for j, i in enumerate(I[0]) if i >= 0]
-    summary_prompt = load_prompt("mirai_summary.txt")
-    for m in matches:
-        try:
-            messages = [
-                {"role": "system", "content": summary_prompt},
-                {"role": "user", "content": m["text"]}
-            ]
-            resp = client.chat.completions.create(model="gpt-4-turbo", messages=messages)
-            m["summary"] = resp.choices[0].message.content.strip()
-        except Exception as e:
-            m["summary"] = f"⚠️ 要約失敗: {e}"
-    return matches
+
+    # 全体要約生成
+    try:
+        combined_text = "\n\n".join(m["text"] for m in matches)
+        overall_prompt = load_prompt("mirai_summary.txt")
+        messages = [
+            {"role": "system", "content": overall_prompt},
+            {"role": "user", "content": combined_text}
+        ]
+        resp = client.chat.completions.create(model=GPT_MODEL, messages=messages,temperature = GPT_TEMPERATURE)
+        summary = resp.choices[0].message.content.strip()
+    except Exception as e:
+        summary = f"⚠️ 全体サマリ生成失敗：{e}"
+
+    return {
+        "matches": matches,
+        "summary": summary
+    }
+
+
 
 st.title("🏛️ きいてミライ（β）")
 
-suggestions_master = [
-    "防災に関する市長の発言はありますか？",
-    "子育て支援の方針について教えて",
-    "地域活性化に向けた取り組みは？"
-]
-if not st.session_state.suggestions_sampled:
-    st.session_state.suggestions_sampled = random.sample(suggestions_master, k=3)
-
+# --- チャット欄（送信ボタンなし・Enter送信） ---
 st.markdown("---\n\n#### 💬 市長に関する質問を入力")
 st.text_input("", key="input", value=st.session_state.input_value, placeholder="例：防災に関する市長の発言はありますか？", on_change=lambda: st.session_state.update(send_now=True, input_value=st.session_state.input))
 
-cols = st.columns(3)
-for i, s in enumerate(st.session_state.suggestions_sampled):
-    if cols[i].button(s, key=f"sugg_{i}"):
-        st.session_state.input_value = s
-        st.session_state.query = s
-        st.session_state.send_now = True
-        st.session_state.is_generating = True
-        st.session_state.clarify_active = False
-        with st.spinner(f"⏳ 「{s}」に回答中... 少々お待ちください"):
-            matches = search_chunks(s)
-            st.session_state.last_matches = matches
-            st.session_state.last_answer = "\n".join(f"- {m.get('topic', '未分類')}: {m['summary']}" for m in matches)
-            try:
-                log_to_gsheet(s, st.session_state.last_answer)
-            except Exception as e:
-                st.warning(f"⚠️ ログ記録に失敗しました: {e}")
-        st.session_state.is_generating = False
-        st.rerun()
+# --- サジェスト ---
+if not st.session_state.get("clarify_active", False):  
+    suggestions_master = [
+        "防災に関する市長の発言はありますか？",
+        "子育て支援の方針について教えて",
+        "地域活性化に向けた取り組みは？"
+    ]
+    if not st.session_state.suggestions_sampled:
+        st.session_state.suggestions_sampled = random.sample(suggestions_master, k=3)
 
-if st.session_state.input and not st.session_state.clarified:
-    result = clarify_query(st.session_state.input)
-    if result["ambiguous"]:
+    cols = st.columns(3)
+    for i, s in enumerate(st.session_state.suggestions_sampled):
+        if cols[i].button(s, key=f"sugg_{s}"):
+            st.session_state.input_value = s
+            st.session_state.query = s
+            st.session_state.send_now = True
+            st.session_state.is_generating = True
+            st.session_state.clarify_active = False
+            with st.spinner(f"⏳ 「{s}」に回答中... 少々お待ちください"):
+                results = search_faiss_and_respond(s)
+                st.session_state.last_answer = results["summary"]
+                st.session_state.last_matches = results["matches"]
+                
+                # ログ記録
+                try:
+                    log_to_gsheet(s, results["summary"])
+                except Exception as e:
+                    st.warning(f"⚠️ ログ記録に失敗しました: {e}")
+                    
+            st.session_state.is_generating = False
+            st.rerun()
+
+# Clarifyプロンプトの確認
+if st.session_state.input and not st.session_state.get("clarified", False):
+    clarify_result = clarify_query(st.session_state.input)
+
+    if clarify_result["ambiguous"] and clarify_result["rewritten_query"]:
         st.session_state.clarify_active = True
-        st.info(f"👉 {result['reason']} → **{result['rewritten_query']}**")
+        st.info(f"👇 より正確な検索のため「{clarify_result['reason']}」ことをお勧めします。例えば、以下の質問に置き換えるのはいかがでしょうか？\n\n**→ {clarify_result['rewritten_query']}**")
+
         col1, col2 = st.columns(2)
         if col1.button("🔁 置き換えて検索"):
-            st.session_state.input_value = result['rewritten_query']
+            st.session_state.input_value = clarify_result["rewritten_query"]
             st.session_state.clarified = True
-            st.session_state.send_now = True
             st.session_state.clarify_active = False
+            st.session_state.send_now = True
             st.rerun()
         if col2.button("🔜 入力文のままで検索"):
             st.session_state.clarified = True
-            st.session_state.send_now = True
             st.session_state.clarify_active = False
+            st.session_state.send_now = True
             st.rerun()
         st.stop()
+    
     else:
+        # 🟨 あいまいでない or 明確な修正提案がない場合も、Clarifyは終了させる！
         st.session_state.clarified = True
 
+# --- 送信処理（Enter or サジェスト選択時） ---
 if st.session_state.input and st.session_state.send_now:
     st.session_state.send_now = False
     st.session_state.is_generating = True
-    
     with st.spinner(f"⏳ 「{st.session_state.input}」に回答中... 少々お待ちください"):
-        matches = search_chunks(st.session_state.input)
-        st.session_state.last_matches = matches
-        st.session_state.last_answer = "tests" #"\n".join(f"- {m.get('topic', '未分類')}: {m['summary']}" for m in matches)
+        results = search_faiss_and_respond(st.session_state.input, top_k)
+        st.session_state.last_answer = results["summary"]
+        st.session_state.last_matches = results["matches"]
+        st.session_state.qa_pairs = results["qa_pairs"]
+        
+        # ログ記録
         try:
-            log_to_gsheet(st.session_state.input, st.session_state.last_answer)
+            log_to_gsheet(st.session_state.input, results["summary"])
         except Exception as e:
             st.warning(f"⚠️ ログ記録に失敗しました: {e}")
+            
     st.session_state.input_value = ""
     st.session_state.is_generating = False
 
+
 st.markdown("#### 💡 要約まとめ")
 if st.session_state.is_generating:
-    st.info("⏳ 回答中です")
+    st.info("⏳ 回答中... 少々お待ちください")
 elif st.session_state.last_answer:
     st.success(st.session_state.last_answer)
-    st.markdown("---\n\n#### 📂 詳細内容")
-    for m in st.session_state.last_matches:
-        with st.expander(f" {m.get('topic', '未分類')}（{m.get('source_file', '')}）"):
-            st.markdown(m["text"])
+    
+    #st.markdown("---\n\n#### 📂 詳細内容")
+    #for m in st.session_state.last_matches:
+    #    with st.expander(f" {m.get('topic', '未分類')}（{m.get('source_file', '')}）"):
+    #        st.markdown(m["text"])
 
 st.divider()
 st.caption("""
