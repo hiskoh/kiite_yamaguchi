@@ -271,10 +271,10 @@ if st.session_state.is_generating:
 elif st.session_state.last_answer:
     st.success(st.session_state.last_answer)
     
-    #st.markdown("---\n\n#### 📂 詳細内容")
-    #for m in st.session_state.last_matches:
-    #    with st.expander(f" {m.get('topic', '未分類')}（{m.get('source_file', '')}）"):
-    #        st.markdown(m["text"])
+    st.markdown("---\n\n#### 📂 詳細内容")
+    for m in st.session_state.last_matches:
+        with st.expander(f" {m.get('topic', '未分類')}（{m.get('source_file', '')}）"):
+            st.markdown(m["text"])
 
 st.divider()
 st.caption("""
