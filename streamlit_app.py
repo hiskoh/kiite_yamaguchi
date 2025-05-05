@@ -92,7 +92,7 @@ def load_faiss_index_and_meta():
         meta = json.loads(download(files["mirai.meta.json"]).decode("utf-8"))
     return index, meta
 
-def ‎search_faiss_and_respond(query):
+def search_faiss_and_respond(query):
     index, meta = load_faiss_index_and_meta()
     if index is None or index.ntotal == 0:
         return {
@@ -153,7 +153,7 @@ if not st.session_state.get("clarify_active", False):
             st.session_state.is_generating = True
             st.session_state.clarify_active = False
             with st.spinner(f"⏳ 「{s}」に回答中... 少々お待ちください"):
-                results = search_faiss_and_respond(s, top_k)
+                results = search_faiss_and_respond(s)
                 st.session_state.last_answer = results["summary"]
                 st.session_state.last_matches = results["matches"]
                 
@@ -197,7 +197,7 @@ if st.session_state.input and st.session_state.send_now:
     st.session_state.send_now = False
     st.session_state.is_generating = True
     with st.spinner(f"⏳ 「{st.session_state.input}」に回答中... 少々お待ちください"):
-        results = search_faiss_and_respond(st.session_state.input, top_k)
+        results = search_faiss_and_respond(st.session_state.input)
         st.session_state.last_answer = results["summary"]
         st.session_state.last_matches = results["matches"]
         
