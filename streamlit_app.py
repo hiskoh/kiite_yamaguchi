@@ -122,8 +122,8 @@ def search_faiss_and_respond(query):
         summary = f"⚠️ 全体サマリ生成失敗：{e}"
 
     return {
-        "matches": matches,
-        "summary": summary
+        "matches": "matches",
+        "summary": "summary"
     }
 
 
