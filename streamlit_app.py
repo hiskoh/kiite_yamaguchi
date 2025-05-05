@@ -173,7 +173,7 @@ if st.session_state.input and st.session_state.send_now:
     with st.spinner(f"⏳ 「{st.session_state.input}」に回答中... 少々お待ちください"):
         matches = search_chunks(st.session_state.input)
         st.session_state.last_matches = matches
-        st.session_state.last_answer = matches #"\n".join(f"- {m.get('topic', '未分類')}: {m['summary']}" for m in matches)
+        st.session_state.last_answer = "tests" #"\n".join(f"- {m.get('topic', '未分類')}: {m['summary']}" for m in matches)
         try:
             log_to_gsheet(st.session_state.input, st.session_state.last_answer)
         except Exception as e:
