@@ -74,56 +74,85 @@ def clarify_query(user_query):
         st.error(f"Clarifyエラー: {e}")
         return {"ambiguous": False, "reason": "", "rewritten_query": ""}
 
-def load_faiss_index_and_meta():
+# 発言録を検索
+def search_faiss_and_respond(query):
+    import tempfile
+
     folder_id = st.secrets["kiite-mirai"]["GOOGLE_MIRAI_DATA_ID"]
-    creds = Credentials.from_service_account_info(st.secrets["gsheets_service_account"], scopes=["https://www.googleapis.com/auth/drive"])
+    creds = Credentials.from_service_account_info(
+        st.secrets["gsheets_service_account"],
+        scopes=["https://www.googleapis.com/auth/drive"]
+    )
     service = build("drive", "v3", credentials=creds)
-    def download(file_id):
+    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+
+    def download_file_content(file_id):
         request = service.files().get_media(fileId=file_id)
         fh = io.BytesIO()
-        MediaIoBaseDownload(fh, request).next_chunk()
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
         fh.seek(0)
         return fh.read()
-    index, meta = None, []
+
+    # 🔍 ファイル取得
     response = service.files().list(q=f"'{folder_id}' in parents and trashed = false", fields="files(id, name)").execute()
     files = {f["name"]: f["id"] for f in response["files"]}
-    if "mirai.index" in files and "mirai.meta.json" in files:
-        index = faiss.read_index(io.BytesIO(download(files["mirai.index"])))
-        meta = json.loads(download(files["mirai.meta.json"]).decode("utf-8"))
-    return index, meta
 
-def search_faiss_and_respond(query):
-    index, meta = load_faiss_index_and_meta()
-    if index is None or index.ntotal == 0:
+    if "mirai.index" not in files or "mirai.meta.json" not in files:
+        return {
+            "matches": [],
+            "summary": "⚠️ インデックスまたはメタ情報が見つかりませんでした。"
+        }
+
+    # 📥 index 読み込み
+    with tempfile.NamedTemporaryFile(delete=False) as f:
+        f.write(download_file_content(files["mirai.index"]))
+        index = faiss.read_index(f.name)
+
+    if index.ntotal == 0:
         return {
             "matches": [],
             "summary": "🔍 関連する市長の発言は見つかりませんでした。"
         }
 
-    # ベクトル化
-    vec = client.embeddings.create(model="text-embedding-ada-002", input=[query])
-    qvec = np.array(vec.data[0].embedding, dtype="float32").reshape(1, -1)
+    meta = json.loads(download_file_content(files["mirai.meta.json"]).decode("utf-8"))
 
-    # 検索
-    D, I = index.search(qvec, top_k)
+    # 🔹 クエリベクトル化
+    res = client.embeddings.create(model="text-embedding-ada-002", input=[query])
+    query_vec = np.array(res.data[0].embedding, dtype="float32").reshape(1, -1)
+
+    # 🔍 類似検索
+    D, I = index.search(query_vec, top_k)
     matches = [meta[i] | {"score": float(D[0][j])} for j, i in enumerate(I[0]) if i >= 0]
 
-    # 全体要約生成
+    if not matches:
+        return {
+            "matches": [],
+            "summary": "🔍 関連する市長の発言は見つかりませんでした。"
+        }
+
+    # 🧠 全体要約
     try:
         combined_text = "\n\n".join(m["text"] for m in matches)
-        overall_prompt = load_prompt("mirai_summary.txt")
+        summary_prompt = load_prompt("mirai_summary.txt")
         messages = [
-            {"role": "system", "content": overall_prompt},
+            {"role": "system", "content": summary_prompt},
             {"role": "user", "content": combined_text}
         ]
-        resp = client.chat.completions.create(model=GPT_MODEL, messages=messages,temperature = GPT_TEMPERATURE)
+        resp = client.chat.completions.create(
+            model=GPT_MODEL,
+            messages=messages,
+            temperature=GPT_TEMPERATURE
+        )
         summary = resp.choices[0].message.content.strip()
     except Exception as e:
         summary = f"⚠️ 全体サマリ生成失敗：{e}"
 
     return {
-        "matches": "matches",
-        "summary": "summary"
+        "matches": matches,
+        "summary": summary
     }
 
 
