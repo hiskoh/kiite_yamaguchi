@@ -78,13 +78,18 @@ def clarify_query(user_query):
 def search_faiss_and_respond(query):
     import tempfile
 
-    folder_id = st.secrets["kiite-mirai"]["GOOGLE_MIRAI_DATA_ID"]
+    gdrive_folder_id = st.secrets["kiite-mirai"]["GOOGLE_MIRAI_DATA_ID"]
     creds = Credentials.from_service_account_info(
         st.secrets["gsheets_service_account"],
         scopes=["https://www.googleapis.com/auth/drive"]
     )
     service = build("drive", "v3", credentials=creds)
     client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+    
+    def list_index_meta_files(folder_id):
+        query = f"'{folder_id}' in parents and trashed = false"
+        results = service.files().list(q=query, fields="files(id, name)").execute()
+        return [f for f in results.get("files", []) if f["name"].endswith(('.index', '.meta.json'))]
 
     def download_file_content(file_id):
         request = service.files().get_media(fileId=file_id)
@@ -97,7 +102,7 @@ def search_faiss_and_respond(query):
         return fh.read()
 
     # 🔍 ファイル取得
-    response = service.files().list(q=f"'{folder_id}' in parents and trashed = false", fields="files(id, name)").execute()
+    response = service.files().list(q=f"'{gdrive_folder_id}' in parents and trashed = false", fields="files(id, name)").execute()
     files = {f["name"]: f["id"] for f in response["files"]}
 
     if "mirai.index" not in files or "mirai.meta.json" not in files:
@@ -106,26 +111,49 @@ def search_faiss_and_respond(query):
             "summary": "⚠️ インデックスまたはメタ情報が見つかりませんでした。"
         }
 
-    # 📥 index 読み込み
-    with tempfile.NamedTemporaryFile(delete=False) as f:
-        f.write(download_file_content(files["mirai.index"]))
-        index = faiss.read_index(f.name)
-
-    if index.ntotal == 0:
-        return {
-            "matches": [],
-            "summary": "🔍 関連する市長の発言は見つかりませんでした。"
-        }
-
-    meta = json.loads(download_file_content(files["mirai.meta.json"]).decode("utf-8"))
+    # 🔹 index/meta をマッピング
+    index_files = list_index_meta_files(gdrive_folder_id)
+    file_pairs = {}
+    for f in index_files:
+        if f["name"].endswith(".meta.json"):
+            base = f["name"].removesuffix(".meta.json")
+            file_pairs.setdefault(base, {})["meta_id"] = f["id"]
+        elif f["name"].endswith(".index"):
+            base = f["name"].removesuffix(".index")
+            file_pairs.setdefault(base, {})["index_id"] = f["id"]
 
     # 🔹 クエリベクトル化
     res = client.embeddings.create(model="text-embedding-ada-002", input=[query])
     query_vec = np.array(res.data[0].embedding, dtype="float32").reshape(1, -1)
 
-    # 🔍 類似検索
-    D, I = index.search(query_vec, top_k)
-    matches = [meta[i] | {"score": float(D[0][j])} for j, i in enumerate(I[0]) if i >= 0]
+    matches = []
+    meta_by_file = {}
+
+    # 🔍 類似チャンク検索
+    for base, pair in file_pairs.items():
+        if "index_id" not in pair or "meta_id" not in pair:
+            continue
+
+        meta = json.loads(download_file_content(pair["meta_id"]))
+        for m in meta:
+            m["source_file"] = base + ".txt"
+        meta_by_file[base + ".txt"] = meta
+
+        with tempfile.NamedTemporaryFile(delete=False) as f:
+            f.write(download_file_content(pair["index_id"]))
+            index = faiss.read_index(f.name)
+
+        if index.ntotal == 0 or index.d != query_vec.shape[1]:
+            continue
+
+        D, I = index.search(query_vec, top_k)
+        for i, dist in zip(I[0], D[0]):
+            if i == -1 or i >= len(meta):
+                continue
+            m = meta[i]
+            m["score"] = float(dist)
+            m["source_index"] = base
+            matches.append(m)
 
     if not matches:
         return {
