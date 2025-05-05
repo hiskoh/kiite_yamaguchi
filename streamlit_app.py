@@ -75,7 +75,7 @@ def clarify_query(user_query):
         return {"ambiguous": False, "reason": "", "rewritten_query": ""}
 
 def load_faiss_index_and_meta():
-    folder_id = st.secrets["kiite_mirai"]["GOOGLE_MIRAI_DATA_ID"]
+    folder_id = st.secrets["kiite-mirai"]["GOOGLE_MIRAI_DATA_ID"]
     creds = Credentials.from_service_account_info(st.secrets["gsheets_service_account"], scopes=["https://www.googleapis.com/auth/drive"])
     service = build("drive", "v3", credentials=creds)
     def download(file_id):
