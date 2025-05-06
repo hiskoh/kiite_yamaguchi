@@ -156,7 +156,7 @@ def search_faiss_and_respond(query):
     
     # 🧠 全体要約
     try:
-        combined_text = "\n\n".join(m["text"] for m in matches)
+        combined_text = "\n\n".join(m["text"] for m in top_matches)
         summary_prompt = load_prompt("mirai_summary.txt")
         messages = [
             {"role": "system", "content": summary_prompt},
@@ -172,7 +172,7 @@ def search_faiss_and_respond(query):
         summary = f"⚠️ 全体サマリ生成失敗：{e}"
 
     return {
-        "matches": matches,
+        "matches": top_matches,
         "summary": summary
     }
 
