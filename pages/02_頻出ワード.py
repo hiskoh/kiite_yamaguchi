@@ -116,12 +116,19 @@ if meta_data:
     # 絞り込みUI（"ALL"を表示ラベル、Noneを内部値にマッピング）
     speakers = sorted(set(item.get("speaker") for item in meta_data if item.get("speaker")))
     types = sorted(set(item.get("type", "").strip() for item in meta_data if item.get("type")))
-
+    all_tags = sorted({tag for item in meta_data for tag in item.get("tags", []) if tag})
+    all_years = sorted({item.get("date", "")[:4] for item in meta_data if item.get("date") and len(item["date"]) >= 4})
+    
     speaker_label = st.selectbox("発言者で絞り込み", ["ALL"] + speakers)
     type_label = st.selectbox("発言種別で絞り込み", ["ALL"] + types)
-
+    tag_label = st.selectbox("カテゴリ（tags）で絞り込み", ["ALL"] + all_tags)
+    year_label = st.selectbox("年で絞り込み（例: 2025）", ["ALL"] + all_years)
+    
+    # --- フィルター条件の設定 ---
     speaker_filter = None if speaker_label == "ALL" else speaker_label
     type_filter = None if type_label == "ALL" else type_label
+    tag_filter = None if tag_label == "ALL" else tag_label
+    year_filter = None if year_label == "ALL" else year_label
 
 
     # ワードクラウドに使わない文字列を指定（引用元：https://github.com/yukihoz/chuoku_gijiroku/blob/master/gijiroku_streamlit.py）
