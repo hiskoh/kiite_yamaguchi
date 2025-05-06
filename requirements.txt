@@ -9,3 +9,5 @@ faiss-cpu
 wordcloud
 pillow
 numpy
+fugashi
+unidic-lite
