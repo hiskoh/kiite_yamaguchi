@@ -5,12 +5,26 @@ from fugashi import Tagger
 from collections import Counter
 import matplotlib.pyplot as plt
 from io import BytesIO
+import os
+import urllib.request
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
+# --------------------------
+# 日本語フォントの確保
+# --------------------------
+def get_font_path():
+    font_dir = "./font"
+    os.makedirs(font_dir, exist_ok=True)
+    font_path = os.path.join(font_dir, "NotoSansCJKjp-Regular.otf")
+    if not os.path.exists(font_path):
+        url = "https://github.com/googlefonts/noto-cjk/raw/main/Sans/OTF/Japanese/NotoSansCJKjp-Regular.otf"
+        urllib.request.urlretrieve(url, font_path)
+    return font_path
+
 # -------------------------------
-# Google Driveからmeta.json取得（Service Account経由）
+# Google Driveからmeta.json取得
 # -------------------------------
 def load_meta_json_from_drive(folder_id):
     creds = Credentials.from_service_account_info(
@@ -32,8 +46,6 @@ def load_meta_json_from_drive(folder_id):
 
     file_id = files[0]['id']
     request = drive_service.files().get_media(fileId=file_id)
-
-    from io import BytesIO
     fh = BytesIO()
     downloader = MediaIoBaseDownload(fh, request)
     done = False
@@ -65,7 +77,7 @@ def extract_noun_frequencies(meta_data, speaker_filter=None, type_filter=None):
 # ワードクラウド描画
 # ------------------
 def draw_wordcloud(freq):
-    font_path = "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc"  # 環境に応じて変更
+    font_path = get_font_path()
     wc = WordCloud(font_path=font_path, width=800, height=400, background_color="white")
     wc.generate_from_frequencies(freq)
 
@@ -77,7 +89,7 @@ def draw_wordcloud(freq):
     st.image(buf)
 
 # -----------------
-# Streamlit UI 部分
+# Streamlit UI
 # -----------------
 st.title("きいてミライ - ワードクラウド生成")
 
