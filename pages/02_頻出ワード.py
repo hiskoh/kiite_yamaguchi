@@ -11,9 +11,9 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseDownload
 
-# --------------------------
-# 日本語フォントの確保
-# --------------------------
+# ------------------------
+# 日本語フォントのダウンロード
+# ------------------------
 def get_font_path():
     font_dir = "./font"
     os.makedirs(font_dir, exist_ok=True)
@@ -23,9 +23,9 @@ def get_font_path():
         urllib.request.urlretrieve(url, font_path)
     return font_path
 
-# -------------------------------
-# Google Driveからmeta.json取得
-# -------------------------------
+# ------------------------
+# Google Driveからmeta.jsonを読み込む
+# ------------------------
 def load_meta_json_from_drive(folder_id):
     creds = Credentials.from_service_account_info(
         st.secrets["gsheets_service_account"],
@@ -36,7 +36,7 @@ def load_meta_json_from_drive(folder_id):
     results = drive_service.files().list(
         q=f"'{folder_id}' in parents and name contains '.meta.json' and trashed=false",
         spaces='drive',
-        fields='files(id, name)',
+        fields='files(id, name)'
     ).execute()
 
     files = results.get("files", [])
@@ -44,7 +44,7 @@ def load_meta_json_from_drive(folder_id):
         st.warning("meta.json が見つかりませんでした")
         return None
 
-    file_id = files[0]['id']
+    file_id = files[0]["id"]
     request = drive_service.files().get_media(fileId=file_id)
     fh = BytesIO()
     downloader = MediaIoBaseDownload(fh, request)
@@ -55,55 +55,69 @@ def load_meta_json_from_drive(folder_id):
     return json.load(fh)
 
 # ------------------------
-# 形態素解析＋ワード集計
+# 名詞抽出＋頻度カウント
 # ------------------------
-def extract_noun_frequencies(meta_data, speaker_filter=None, type_filter=None):
+def extract_keywords(meta_data, speaker_filter=None, type_filter=None, min_length=2, stop_words=None):
     tagger = Tagger()
     counter = Counter()
+    stop_words = stop_words or []
 
     for item in meta_data:
         if speaker_filter and item.get("speaker") != speaker_filter:
             continue
-        if type_filter and item.get("type") != type_filter:
+        if type_filter and item.get("type", "").strip() != type_filter:
             continue
 
         text = item.get("text", "")
-        words = [w.surface for w in tagger(text) if w.feature.pos1 == "名詞" and len(w.surface) > 1]
+        words = [
+            w.surface for w in tagger(text)
+            if w.feature.pos1 == "名詞"
+            and len(w.surface) >= min_length
+            and w.surface not in stop_words
+        ]
         counter.update(words)
 
     return counter
 
-# ------------------
-# ワードクラウド描画
-# ------------------
+# ------------------------
+# ワードクラウド描画（streamlitにそのまま）
+# ------------------------
 def draw_wordcloud(freq):
     font_path = get_font_path()
-    wc = WordCloud(font_path=font_path, width=800, height=400, background_color="white")
+    wc = WordCloud(
+        font_path=font_path,
+        width=800,
+        height=400,
+        background_color="white",
+        colormap="tab10", 
+        regexp=r"[\w']+"
+    )
     wc.generate_from_frequencies(freq)
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.imshow(wc, interpolation='bilinear')
+    ax.axis("off")
+    st.pyplot(fig)
 
-    buf = BytesIO()
-    plt.figure(figsize=(10, 5))
-    plt.imshow(wc, interpolation="bilinear")
-    plt.axis("off")
-    plt.savefig(buf, format="png")
-    st.image(buf)
+# ------------------------
+# Streamlit 本体
+# ------------------------
+st.title("きいてミライ：ワードクラウド")
 
-# -----------------
-# Streamlit UI
-# -----------------
-st.title("きいてミライ - ワードクラウド生成")
-
+# secrets.toml から固定フォルダIDを取得
 gdrive_folder_id = st.secrets["kiite-mirai"]["GOOGLE_MIRAI_DATA_ID"]
 meta_data = load_meta_json_from_drive(gdrive_folder_id)
 
 if meta_data:
-    speakers = sorted(set(item["speaker"] for item in meta_data if item.get("speaker")))
-    types = sorted(set(item["type"] for item in meta_data if item.get("type")))
+    # 絞り込みUI
+    speakers = sorted(set(item.get("speaker") for item in meta_data if item.get("speaker")))
+    types = sorted(set(item.get("type", "").strip() for item in meta_data if item.get("type")))
+    speaker_filter = st.selectbox("発言者で絞り込み", [None] + speakers)
+    type_filter = st.selectbox("発言種別で絞り込み", [None] + types)
 
-    speaker_filter = st.selectbox("発言者で絞り込み（任意）", [None] + speakers)
-    type_filter = st.selectbox("発言種別で絞り込み（任意）", [None] + types)
+    # ストップワード設定
+    stop_words = ["こと", "ところ", "よう", "今回", "市", "もの", "中", "方", "ため"]  # 任意拡張OK
 
-    freq = extract_noun_frequencies(meta_data, speaker_filter, type_filter)
+    freq = extract_keywords(meta_data, speaker_filter, type_filter, stop_words=stop_words)
 
     if freq:
         draw_wordcloud(freq)
