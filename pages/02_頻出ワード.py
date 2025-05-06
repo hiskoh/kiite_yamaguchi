@@ -123,3 +123,10 @@ if meta_data:
         draw_wordcloud(freq)
     else:
         st.info("対象条件に一致する語句がありませんでした。")
+
+
+    stop_list_text = "、".join(stop_words)
+    st.markdown(
+        f"<small>※ 本ワードクラウドは形態素解析（名詞抽出）を行い、以下の一般的な語句（stop_words）を除外しています：{stop_list_text}</small>",
+        unsafe_allow_html=True
+    )
