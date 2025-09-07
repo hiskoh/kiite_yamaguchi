@@ -17,7 +17,7 @@ top_k = 3
 GPT_MODEL = "gpt-4.1-mini"
 GPT_TEMPERATURE = 0.1
 st.secrets["kiite-mirai"]["GOOGLE_MIRAI_LOG_SHEET_ID"]
-AWS_REGION          = us-west-2
+AWS_REGION          = "us-west-2"
 OUTPUT_PREFIX       = "02_chunk_jsonl/" 
 EMBED_MODEL         = "text-embedding-ada-002"  
 SCORE_THRESHOLD     = "0.0"
