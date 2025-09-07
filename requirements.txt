@@ -11,3 +11,4 @@ pillow
 numpy
 fugashi
 unidic-lite
+boto3>=1.34.150
