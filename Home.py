@@ -16,14 +16,13 @@ st.set_page_config(page_title="きいてミライ（β）", layout="wide", page_
 top_k = 3
 GPT_MODEL = "gpt-4.1-mini"
 GPT_TEMPERATURE = 0.1
-st.secrets["kiite-mirai"]["GOOGLE_MIRAI_LOG_SHEET_ID"]
 AWS_REGION          = "us-west-2"
 OUTPUT_PREFIX       = "02_chunk_jsonl/" 
 EMBED_MODEL         = "text-embedding-ada-002"  
 SCORE_THRESHOLD     = "0.0"
 AWS_ACCESS_KEY_S    = st.secrets["AWS-KEY"]["AWS_ACCESS_KEY"]
 AWS_SECRET_KEY_S    = st.secrets["AWS-KEY"]["AWS_SECRET_KEY"]
-S3_INDEX_ARN        = st.secrets["AWS-KEY"]["VECTOR_BUCKET_ARN"]       
+S3_INDEX_ARN        = st.secrets["AWS-KEY"]["VECTOR_INDEX_ARN"] //st.secrets["AWS-KEY"]["VECTOR_BUCKET_ARN"]       
 DATA_BUCKET_NAME    = st.secrets["AWS-KEY"]["DATA_BUCKET_NAME"]        
 
 # ====== ▲ 初期値設定 ========================================================
