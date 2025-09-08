@@ -22,7 +22,7 @@ EMBED_MODEL         = "text-embedding-ada-002"
 SCORE_THRESHOLD     = "0.0"
 AWS_ACCESS_KEY_S    = st.secrets["AWS-KEY"]["AWS_ACCESS_KEY"]
 AWS_SECRET_KEY_S    = st.secrets["AWS-KEY"]["AWS_SECRET_KEY"]
-S3_INDEX_ARN        = st.secrets["AWS-KEY"]["VECTOR_INDEX_ARN"] //st.secrets["AWS-KEY"]["VECTOR_BUCKET_ARN"]       
+S3_INDEX_ARN        = st.secrets["AWS-KEY"]["VECTOR_INDEX_ARN"] #st.secrets["AWS-KEY"]["VECTOR_BUCKET_ARN"]       
 DATA_BUCKET_NAME    = st.secrets["AWS-KEY"]["DATA_BUCKET_NAME"]        
 
 # ====== ▲ 初期値設定 ========================================================
