@@ -68,7 +68,6 @@ a[data-testid="stPageLink"]:hover{
 # -----------------------------
 st.title("きいてポータル｜やまぐち ことばアーカイブ")
 st.markdown('<div class="hero small-muted">市長や議員の発言を検索・分析できるサイトです。政策やまちづくりに関する議論を、もっと身近に。</div>', unsafe_allow_html=True)
-st.divider()
 
 # -----------------------------
 # 安全なページ遷移ヘルパー
@@ -108,7 +107,7 @@ def card_with_link(page_py: str, kicker: str, title: str, desc: str, link_label:
             f"""
             <div class="card-inner">
               <div class="kicker">{kicker}</div>
-              <div style="font-size:1.15rem; font-weight:700; margin:.2rem 0 0 0;">{title}</div>
+              <div style="font-size:1.15rem; font-weight:700; margin:.2rem 2rem 0 0;">{title}</div>
               <p style="color:rgba(0,0,0,.65); line-height:1.5; font-size:.95rem; margin:.4rem 0 0 0;">
                 {desc}
               </p>
@@ -149,7 +148,7 @@ with c3:
         desc="頻出ワード、共起ネットワーク、テーマの時系列推移、質問スタイル分析などを可視化。",
         link_label="発言をまとめて見る",
     )
-
+st.divider()
 
 # -----------------------------
 # 概要 & Notionリンク
