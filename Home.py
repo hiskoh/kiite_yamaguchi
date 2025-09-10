@@ -111,7 +111,7 @@ def card_with_link(page_py: str, kicker: str, title: str, desc: str, link_label:
               <div style="font-size:1.15rem; font-weight:700; margin:.2rem 2rem 0 0;">
                 {title}
               </div>
-              <p style="color:rgba(0,0,0,.65); line-height:1.5; font-size:.95rem; margin-bottom:.8rem; margin:.4rem 0 0 0;">
+              <p style="color:rgba(0,0,0,.65); line-height:1.5; font-size:.95rem; margin:.4rem 0 8rem 0;">
                 {desc}
               </p>
             </div>
