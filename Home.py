@@ -224,7 +224,16 @@ def search_s3vector_and_respond(query):
     # 🧠 上位10件の本文をまとめて要約
     try:
         combined_text = "\n\n".join(m["text"] for m in top_matches if m.get("text"))
-        summary_prompt = load_prompt("mirai_summary.txt")
+
+        base_prompt = load_prompt("mirai_summary.txt")
+        guard = f"""
+        ---
+        【追加制約】
+        - 以降の要約は、ユーザーの質問「{query}」に直接関連する情報のみを対象にしてください。
+        - 関連しない内容が含まれている場合は無視してください。
+        """
+        summary_prompt = base_prompt + "\n" + guard
+        
         messages = [
             {"role": "system", "content": summary_prompt},
             {"role": "user", "content": combined_text if combined_text else "(該当する文脈が見つかりませんでした)"},
