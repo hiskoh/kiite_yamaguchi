@@ -13,12 +13,19 @@ st.set_page_config(page_title="きいてミライ（β）", layout="wide", page_
 
 # ====== ▼ 初期値設定 ========================================================
 
-top_k = 3
+#検索結果の設定
+TOP_N_RETURN       = 10          # 最終的に返す件数
+SIM_THRESHOLD      = 0.80        # 類似度のしきい値（0.0～1.0）
+TOPK_CANDIDATES    = 100         # S3Vectorsから一旦取り寄せる候補数（多めに）
+
+#ChatGPTの設定
 GPT_MODEL = "gpt-4.1-mini"
 GPT_TEMPERATURE = 0.1
+EMBED_MODEL         = "text-embedding-3-small"  
+
+#AWSの設定
 AWS_REGION          = "us-west-2"
 OUTPUT_PREFIX       = "02_chunk_jsonl/" 
-EMBED_MODEL         = "text-embedding-3-small"  
 SCORE_THRESHOLD     = 0.0
 AWS_ACCESS_KEY_S    = st.secrets["AWS-KEY"]["AWS_ACCESS_KEY"]
 AWS_SECRET_KEY_S    = st.secrets["AWS-KEY"]["AWS_SECRET_KEY"]
@@ -86,7 +93,7 @@ def clarify_query(user_query):
         st.error(f"Clarifyエラー: {e}")
         return {"ambiguous": False, "reason": "", "rewritten_query": ""}
 
-# ========= ▼ ここから：FAISS→S3 Vectors 置換実装 ===============================
+# ========= ▼ ここからS3 Vectorsでの検索を実装 ===============================
 
 def _to_similarity(distance: float) -> float:
     """distance（cosine想定）→ 類似度スコア 1 - distance"""
@@ -124,7 +131,7 @@ def _fetch_original_chunk_for_search(s3_client, chunk_id: str) -> dict | None:
 
 def _query_s3vectors(query_text: str, top_k_: int, score_threshold: float):
     """
-    S3 Vectors を検索し、[{score, distance, key, source_file, chunk_id, original}] を返す。
+    S3 Vectors を検索し、[{score(similarity), distance, key, source_file, chunk_id, original}] を返す。
     """
     # OpenAI埋め込み
     oai = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
@@ -145,11 +152,11 @@ def _query_s3vectors(query_text: str, top_k_: int, score_threshold: float):
         region_name=AWS_REGION,
     )
 
-    # 検索
+    # ✅ まずは多めに候補を取ってくる（TOPK_CANDIDATES）
     res = s3v_client.query_vectors(
         indexArn=S3_INDEX_ARN,
         queryVector={"float32": qvec},
-        topK=top_k_,
+        topK=max(TOPK_CANDIDATES, top_k_),   # ← ここを overfetch
         returnMetadata=True,
         returnDistance=True,
     )
@@ -159,53 +166,47 @@ def _query_s3vectors(query_text: str, top_k_: int, score_threshold: float):
     for m in matches:
         key       = m.get("key") or m.get("id")
         distance  = float(m.get("distance", 0.0))
-        score     = _to_similarity(distance)
+        score     = _to_similarity(distance)  # 1 - distance
+        # ✅ 類似度しきい値でフィルタ（score_threshold は 0.80 を想定）
         if score < score_threshold:
             continue
+
         md        = m.get("metadata") or {}
         source    = md.get("source_file")
         chunk_id  = md.get("chunk_id") or key
-
         original  = _fetch_original_chunk_for_search(s3_client, chunk_id)
 
         out.append({
-            "score": score,
-            "distance": distance,
+            "score": score,            # 類似度（高いほど良い）
+            "distance": distance,      # 参考
             "key": key,
             "source_file": source,
             "chunk_id": chunk_id,
             "original": original,
         })
 
+    # 類似度の高い順にソート
     out.sort(key=lambda x: x["score"], reverse=True)
     return out
 
 # 発言録を検索（元関数名を維持：UIや他の呼び出し側は無変更）
-def search_faiss_and_respond(query):
-    """
-    旧FAISS実装を S3 Vectors に置換。
-    - 上位 top_k の original['text'] をまとめて要約を生成
-    - 返却形式は従来互換: {"matches": [...], "summary": "..."}
-    """
+def search_s3vector_and_respond(query):
     try:
-        hits = _query_s3vectors(query_text=query, top_k_=max(top_k, 3), score_threshold=SCORE_THRESHOLD)
+        hits = _query_s3vectors(
+            query_text=query,
+            top_k_=TOP_N_RETURN,            # 最終返却数
+            score_threshold=SIM_THRESHOLD   # 0.80
+        )
     except Exception as e:
-        return {
-            "matches": [],
-            "summary": f"🔍 S3 Vectors 検索でエラーが発生しました: {e}"
-        }
+        return {"matches": [], "summary": f"🔍 S3 Vectors 検索でエラーが発生しました: {e}"}
 
     if not hits:
-        return {
-            "matches": [],
-            "summary": "🔍 関連する市長の発言は見つかりませんでした。"
-        }
+        return {"matches": [], "summary": "🔍 類似度0.80以上の発言は見つかりませんでした。"}
 
-    # scoreの大きい順で上位を絞り込み
-    top_hits = hits[:top_k]
+    # ✅ 類似度で降順 → 上位10件だけ
+    top_hits = hits[:TOP_N_RETURN]
 
-    # Streamlit側の「📂 詳細内容」expanderで使うため、従来のキーに合わせて整形
-    # m = {"text", "topic", "source_file", "score", "source_index"(ダミー), ...}
+    # 返却形の整形（UIには「スコア＝類似度」を出すよう変更）
     top_matches = []
     for h in top_hits:
         o = h.get("original") or {}
@@ -215,32 +216,25 @@ def search_faiss_and_respond(query):
             "source_file": h.get("source_file") or o.get("source_file") or "",
             "date": o.get("date"),
             "type": o.get("type"),
-            "score": float(h.get("distance", 0.0)),  # 互換性のため distance を score に格納（小さいほど良い想定だったUIに合わせる）
+            "score": float(h.get("score", 0.0)),  # ← 類似度（高いほど良い）
             "chunk_id": h.get("chunk_id"),
-            "source_index": "s3vectors",             # 後方互換用のダミー
+            "source_index": "s3vectors",
         })
 
-    # 🧠 全体要約
+    # 🧠 上位10件の本文をまとめて要約
     try:
         combined_text = "\n\n".join(m["text"] for m in top_matches if m.get("text"))
         summary_prompt = load_prompt("mirai_summary.txt")
         messages = [
             {"role": "system", "content": summary_prompt},
-            {"role": "user", "content": combined_text if combined_text else "(該当する文脈が見つかりませんでした)"}
+            {"role": "user", "content": combined_text if combined_text else "(該当する文脈が見つかりませんでした)"},
         ]
-        resp = client.chat.completions.create(
-            model=GPT_MODEL,
-            messages=messages,
-            temperature=GPT_TEMPERATURE
-        )
+        resp = client.chat.completions.create(model=GPT_MODEL, messages=messages, temperature=GPT_TEMPERATURE)
         summary = resp.choices[0].message.content.strip()
     except Exception as e:
         summary = f"⚠️ 全体サマリ生成失敗：{e}"
 
-    return {
-        "matches": top_matches,
-        "summary": summary
-    }
+    return {"matches": top_matches, "summary": summary}
 
 st.title("🏛️ きいてミライ（β）")
 
@@ -273,7 +267,7 @@ if not st.session_state.get("clarify_active", False):
             st.session_state.is_generating = True
             st.session_state.clarify_active = False
             with st.spinner(f"⏳ 「{s}」に回答中... 少々お待ちください"):
-                results = search_faiss_and_respond(s)
+                results = search_s3vector_and_respond(s)
                 st.session_state.last_answer = results["summary"]
                 st.session_state.last_matches = results["matches"]
 
@@ -317,7 +311,7 @@ if st.session_state.input and st.session_state.send_now:
     st.session_state.send_now = False
     st.session_state.is_generating = True
     with st.spinner(f"⏳ 「{st.session_state.input}」に回答中... 少々お待ちください"):
-        results = search_faiss_and_respond(st.session_state.input)
+        results = search_s3vector_and_respond(st.session_state.input)
         st.session_state.last_answer = results["summary"]
         st.session_state.last_matches = results["matches"]
 
