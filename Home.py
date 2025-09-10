@@ -81,33 +81,28 @@ def page_link_safe(target: str, label: str, icon: str = "➡️"):
         st.link_button(f"{label} {icon}", url="#")
         st.caption("※ このアプリのマルチページ構成でご利用ください。")
         
-def card_link(page: str, kicker: str, title: str, subtitle: str, desc: str):
-    # カードの上半分（kicker, title, subtitle, 説明）
+def card_link(page: str, kicker: str, subtitle: str, desc: str):
+    # カード本体
     st.markdown(f"""
-    <div class="card">
+    <div class="card" style="position:relative;">
         <div class="kicker">{kicker}</div>
-        <div style="font-size:1.2rem; font-weight:700; margin:0.2rem 0 0 0;">
-            {title}
-        </div>
         <div style="font-size:1rem; font-weight:600; margin-bottom:0.6rem;">
             {subtitle}
         </div>
-        <p style="color:rgba(0,0,0,0.65); line-height:1.5; font-size:0.95rem; margin-bottom:0.8rem;">
+        <p style="color:rgba(0,0,0,0.65); line-height:1.5; font-size:0.95rem; margin-bottom:0;">
             {desc}
         </p>
+    </div>
     """, unsafe_allow_html=True)
 
-    # リンク部分（カードの中に見せたいので margin を調整）
-    page_link_safe(page, f"{subtitle} を見る")
+    # 透明リンクをオーバーレイ
+    st.page_link(page, label="", icon="")
 
-    # カード閉じタグ
-    st.markdown("</div>", unsafe_allow_html=True)
 
 with col1:
     card_link(
         APP_MAYOR_PATH,
-        "👔 行政",
-        "聞いてミライ",
+        "👔 聞いてミライ",
         "市長の発言を探す",
         "施政方針や記者会見をRAGで検索。タグ・年度で絞り込み、要点要約で素早く把握できます。"
     )
