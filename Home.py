@@ -22,7 +22,7 @@ APP_SUMMARY_PATH = "pages/03_頻出発言ダッシュボード.py"
 # -----------------------------
 st.markdown("""
 <style>
-.small-muted { color: rgba(0,0,0,0.55); font-size: .9rem; margin: .4rem 0 .8rem 0; }
+.small-muted { color: rgba(0,0,0,0.55); font-size: .9rem; margin: 0 0 .8rem 0; }
 .hero { padding: .4rem 0 .2rem 0; }
 
 /* container(border=True) をカードっぽく */
