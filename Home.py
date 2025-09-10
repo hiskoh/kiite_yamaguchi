@@ -48,11 +48,6 @@ a[href^="https://"] { text-decoration: none; }
   font-size: 0.9rem;
   letter-spacing: .04em;
   font-weight: 700;
-  display:inline-block;
-  padding:.18rem .5rem;
-  border-radius:999px;
-  border:1px solid #D5E2FF;
-  background:#EEF3FF;
   color:#1a57ff;
 }
 
