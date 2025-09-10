@@ -49,7 +49,7 @@ div[data-testid="stContainer"] > div:has(> .card-inner):hover {
 
 /* ▼ リンク前の余白用ラッパ */
 .link-wrap { 
-  margin-top: .8rem !important;    /* 半行程度の余白 */
+  margin-top: .12rem !important;    /* 半行程度の余白 */
 }
 
 /* ▼ st.page_link を“グレーのリンク風”に強制上書き */
@@ -57,6 +57,7 @@ div[data-testid="stContainer"] > div:has(> .card-inner):hover {
   display: block !important;
   width: 100% !important;
   text-align: left !important;
+  margin-top: .12rem !important;    /* 半行程度の余白 */
   padding: .4rem .2rem !important;
   background: transparent !important;
   border: none !important;
