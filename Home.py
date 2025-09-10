@@ -1,24 +1,30 @@
+# Home.py もしくは pages/00_トップページ.py
 import streamlit as st
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from pathlib import Path
 
-st.set_page_config(page_title="きいてポータル｜やまぐち ことばアーカイブ", page_icon="🗣️", layout="wide")
+# -----------------------------
+# 基本設定
+# -----------------------------
+st.set_page_config(
+    page_title="きいてポータル｜やまぐち ことばアーカイブ",
+    page_icon="🗣️",
+    layout="wide"
+)
 
 NOTION_URL = "https://fortune-orangutan-6aa.notion.site/1d0311267344808db873ff8af9b67365"
 APP_MAYOR_PATH   = "pages/01_きいてミライ｜市長の発言を探す.py"
 APP_COUNCIL_PATH = "pages/02_きいてギカイ｜議員の発言を探す.py"
 APP_SUMMARY_PATH = "pages/03_頻出発言ダッシュボード｜ことばの傾向を知る.py"
 
-# ---------- Style ----------
+# -----------------------------
+# スタイル（カード＋リンク風ボタン）
+# -----------------------------
 st.markdown("""
 <style>
-.small-muted { 
-  color: rgba(0,0,0,0.55); 
-  font-size: .9rem; 
-}
-.hero { 
-  padding: .4rem 0 .2rem 0; 
-}
+.small-muted { color: rgba(0,0,0,0.55); font-size: .9rem; }
+.hero { padding: .4rem 0 .2rem 0; }
 
 /* container(border=True) をカードっぽく */
 div[data-testid="stContainer"] > div:has(> .card-inner) {
@@ -37,43 +43,66 @@ div[data-testid="stContainer"] > div:has(> .card-inner):hover {
 
 /* バッジ */
 .kicker {
-  font-size: .9rem; 
-  letter-spacing: .04em; 
-  font-weight: 700;
-  display:inline-block; 
-  padding:.18rem .5rem; 
-  border-radius:999px;
-  border:1px solid #D5E2FF; 
-  background:#EEF3FF; 
-  color:#1a57ff;
+  font-size: .9rem; letter-spacing: .04em; font-weight: 700;
+  display:inline-block; padding:.18rem .5rem; border-radius:999px;
+  border:1px solid #D5E2FF; background:#EEF3FF; color:#1a57ff;
 }
 
-/* page_link をリンク風ボタンに */
+/* page_link を“グレーのリンク風”に（半行の余白付き） */
 a[data-testid="stPageLink"]{
-  display:block; 
-  width:100%; 
-  text-align:left; 
-  margin-top:.8rem;          /* 半行ぶんの余白 */
-  padding:.4rem .2rem;
-  border:none;
-  background:transparent; 
-  color:rgba(0,0,0,.55);     /* グレー文字 */
-  font-weight:500;
+  display:block; width:100%; text-align:left;
+  margin-top:.8rem; padding:.4rem .2rem;
+  background:transparent; border:none;
+  color:rgba(0,0,0,.55); font-weight:500;
   text-decoration:none !important;
 }
 a[data-testid="stPageLink"]:hover{
-  color:rgba(15,103,255,.85); 
-  text-decoration:underline; /* hoverでリンク感 */
+  color:rgba(15,103,255,.85);
+  text-decoration:underline;
 }
 </style>
 """, unsafe_allow_html=True)
 
-
+# -----------------------------
+# ヘッダー
+# -----------------------------
 st.title("きいてポータル｜やまぐち ことばアーカイブ")
 st.markdown('<div class="hero small-muted">市長や議員の発言を検索・分析できるサイトです。政策やまちづくりに関する議論を、もっと身近に。</div>', unsafe_allow_html=True)
+st.divider()
 
-# ---------- カード描画 ----------
-def card_with_link(page: str, kicker: str, title: str, desc: str, link_label: str):
+# -----------------------------
+# 安全なページ遷移ヘルパー
+# -----------------------------
+def page_link_safe_mp(page_py: str, label: str, icon: str = "➡️"):
+    """
+    Multipageで安全にページ遷移するためのヘルパー。
+    1) ページ名（サイドバーに表示される名前）で st.page_link
+    2) だめならファイルパスで st.page_link
+    3) だめなら switch_page
+    4) 最後に link_button の見た目だけ
+    """
+    page_name = Path(page_py).stem  # 例: "01_きいてミライ｜市長の発言を探す"
+    try:
+        st.page_link(page_name, label=f"{icon} {label}")
+        return
+    except Exception:
+        pass
+    try:
+        st.page_link(page_py, label=f"{icon} {label}")
+        return
+    except Exception:
+        pass
+    if hasattr(st, "switch_page"):
+        # スイッチページで確実に遷移（見た目はテキストリンク風に合わせる）
+        if st.button(f"{icon} {label}", use_container_width=True):
+            st.switch_page(page_py)
+    else:
+        st.link_button(f"{icon} {label}", url="#")
+
+# -----------------------------
+# カード描画（確実に遷移：カード内のリンク風ボタン）
+# -----------------------------
+def card_with_link(page_py: str, kicker: str, title: str, desc: str, link_label: str):
     with st.container(border=True):
         st.markdown(
             f"""
@@ -87,42 +116,44 @@ def card_with_link(page: str, kicker: str, title: str, desc: str, link_label: st
             """,
             unsafe_allow_html=True,
         )
-        # ← containerの“中”に page_link を置くので、確実に同カード内のボタンとして遷移します
-        st.page_link(page, label=link_label, icon="➡️")
+        page_link_safe_mp(page_py, link_label)
 
-# ---------- 3カード ----------
+# -----------------------------
+# 3カード
+# -----------------------------
 c1, c2, c3 = st.columns(3, gap="large")
 
 with c1:
     card_with_link(
-        page=APP_MAYOR_PATH,
+        page_py=APP_MAYOR_PATH,
         kicker="👔 市長の発言を探す",
-        title="きいてミライ",
+        title="聞いてミライ",
         desc="施政方針や記者会見をRAGで検索。タグ・年度で絞り込み、要点要約で素早く把握できます。",
         link_label="市長の発言を見る",
     )
 
 with c2:
     card_with_link(
-        page=APP_COUNCIL_PATH,
+        page_py=APP_COUNCIL_PATH,
         kicker="🏛 議員の発言を探す",
-        title="きいてギカイ",
+        title="聞いてギカイ",
         desc="会派・議員名・定例会で検索。質問と答弁のペア表示で、議論の流れが一目で分かります。",
         link_label="議員の発言を見る",
     )
 
 with c3:
     card_with_link(
-        page=APP_SUMMARY_PATH,
+        page_py=APP_SUMMARY_PATH,
         kicker="📊 ことばの傾向を知る",
         title="頻出発言ダッシュボード",
         desc="頻出ワード、共起ネットワーク、テーマの時系列推移、質問スタイル分析などを可視化。",
         link_label="発言をまとめて見る",
     )
 
-st.divider()
 
-# ---------- 概要 & Notion ----------
+# -----------------------------
+# 概要 & Notionリンク
+# -----------------------------
 st.subheader("このサイトについて")
 st.write(
     "「きいてポータル」は、**市長や議員の発言を検索・分析できるアーカイブ**です。"
@@ -135,7 +166,9 @@ st.write(
 )
 st.write(f'🔗[本プロジェクトの詳細はこちら]({NOTION_URL})')
 
-# ---------- フッター（JST） ----------
+# -----------------------------
+# フッター（JST）
+# -----------------------------
 st.markdown("---")
 col_a, col_b, col_c, col_d = st.columns([1,1,1,2])
 with col_a: st.write("© 2025 きいてポータル")
