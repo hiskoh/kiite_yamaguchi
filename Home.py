@@ -96,14 +96,14 @@ def card_link(page: str, kicker: str, subtitle: str, desc: str):
     """, unsafe_allow_html=True)
 
     # 透明リンクをオーバーレイ
-    st.page_link(page, label="", icon="")
+    st.page_link(page, label="\u200b", icon=None)
 
 
 with col1:
     card_link(
         APP_MAYOR_PATH,
-        "👔 聞いてミライ",
-        "市長の発言を探す",
+        "👔 市長の発言を探す",
+        "聞いてミライ",
         "施政方針や記者会見をRAGで検索。タグ・年度で絞り込み、要点要約で素早く把握できます。"
     )
 
