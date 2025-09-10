@@ -15,7 +15,7 @@ st.set_page_config(page_title="きいてミライ（β）", layout="wide", page_
 
 #検索結果の設定
 TOP_N_RETURN       = 10          # 最終的に返す件数
-SIM_THRESHOLD      = 0.5        # 類似度のしきい値（0.0～1.0）
+SIM_THRESHOLD      = 0.1        # 類似度のしきい値（0.0～1.0）
 TOPK_CANDIDATES    = 30         # S3Vectorsから一旦取り寄せる候補数（多めに）
 
 #ChatGPTの設定
