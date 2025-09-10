@@ -78,19 +78,16 @@ st.divider()
 # -----------------------------
 # ヘルパー
 # -----------------------------
-def card_with_pagelink(page: str, kicker: str, title: str, subtitle: str, desc: str, link_label: str):
+def card_with_pagelink(page: str, kicker: str, title: str, desc: str, link_label: str):
     """
     カードを1つ描画し、その中に st.page_link を内包させる（確実に遷移）。
-    title と subtitle は別サイズで、説明文は薄いグレー。
+    説明文は薄いグレー。
     """
     st.markdown(f"""
     <div class="card">
         <div class="kicker">{kicker}</div>
         <div style="font-size:1.15rem; font-weight:700; margin:0.2rem 0 0 0;">
             {title}
-        </div>
-        <div style="font-size:1.0rem; font-weight:600; margin-bottom:0.6rem;">
-            {subtitle}
         </div>
         <p style="color:rgba(0,0,0,0.65); line-height:1.5; font-size:0.95rem; margin:0 0 .2rem 0;">
             {desc}
@@ -116,9 +113,8 @@ col1, col2, col3 = st.columns(3, gap="large")
 with col1:
     card_with_pagelink(
         page=APP_MAYOR_PATH,
-        kicker="👔 行政",
+        kicker="👔 市長の発言を探す",
         title="聞いてミライ",
-        subtitle="市長の発言を探す",
         desc="施政方針や記者会見をRAGで検索。タグ・年度で絞り込み、要点要約で素早く把握できます。",
         link_label="市長の発言を見る"
     )
@@ -126,9 +122,8 @@ with col1:
 with col2:
     card_with_pagelink(
         page=APP_COUNCIL_PATH,
-        kicker="🏛 議会",
+        kicker="🏛 市議の発言を探す",
         title="聞いてギカイ",
-        subtitle="議員の発言を探す",
         desc="会派・議員名・定例会で検索。質問と答弁のペア表示で、議論の流れが一目で分かります。",
         link_label="議員の発言を見る"
     )
@@ -136,9 +131,8 @@ with col2:
 with col3:
     card_with_pagelink(
         page=APP_SUMMARY_PATH,
-        kicker="📊 INSIGHTS",
+        kicker="📊 ことばの傾向を知る",
         title="頻出発言ダッシュボード",
-        subtitle="ことばの傾向を知る",
         desc="頻出ワード、共起ネットワーク、テーマの時系列推移、質問スタイル分析などを可視化。",
         link_label="発言をまとめて見る"
     )
