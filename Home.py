@@ -86,9 +86,12 @@ with col1:
     <a href="{APP_MAYOR_PATH}" target="_self" style="text-decoration: none; color: inherit;">
     <div class="card">
         <div class="kicker">👔 行政</div>
-        <h3>聞いてミライ｜市長の発言を探す</h3>
-        <p>施政方針や記者会見をRAGで検索。タグ・年度で絞り込み、要点要約で素早く把握できます。</p>
-        <p><b>市長の発言を見る ➡️</b></p>
+        <h4 style="margin:0.2rem 0;">聞いてミライ</h4>
+        <div style="font-size:1rem; font-weight:600; margin-bottom:0.6rem;">市長の発言を探す</div>
+        <p style="color:rgba(0,0,0,0.65); line-height:1.5; font-size:0.95rem;">
+            施政方針や記者会見をRAGで検索。タグ・年度で絞り込み、要点要約で素早く把握できます。
+        </p>
+        <p style="font-weight:600; margin-top:0.6rem;">市長の発言を見る ➡️</p>
     </div>
     </a>
     """, unsafe_allow_html=True)
