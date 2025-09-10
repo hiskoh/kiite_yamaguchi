@@ -23,18 +23,18 @@ APP_SUMMARY_PATH = "pages/03_頻出発言ダッシュボード｜ことばの傾
 # -----------------------------
 
 # 透明な page_link をカード全面にかぶせるためのCSS
+# 透明な page_link をカード全面にかぶせるためのCSS
 st.markdown("""
 <style>
-/* st.page_link が吐くラッパーをカード全面に拡張して透明化 */
-a.st-emotion-cache-1cypcdb, button.st-emotion-cache-1cypcdb,
-a.st-emotion-cache-1jicfl2, button.st-emotion-cache-1jicfl2 { /* バージョン差異に対応して2候補 */
+div.card { position: relative; }
+a[data-testid="stPageLink"] {
   position: absolute !important;
-  inset: 0 !important;           /* top:0; right:0; bottom:0; left:0 と同じ */
-  opacity: 0 !important;         /* 見えないがクリックは有効 */
+  inset: 0 !important;    /* top, right, bottom, left 全部0 */
+  opacity: 0 !important;  /* 見えないけどクリック有効 */
+  z-index: 10;
 }
 </style>
 """, unsafe_allow_html=True)
-
 
 st.markdown("""
 <style>
@@ -97,22 +97,26 @@ def page_link_safe(target: str, label: str, icon: str = "➡️"):
         st.link_button(f"{label} {icon}", url="#")
         st.caption("※ このアプリのマルチページ構成でご利用ください。")
         
-def card_link(page: str, kicker: str, subtitle: str, desc: str):
+def card_link(page: str, kicker: str, title: str, subtitle: str, desc: str):
     # カード本体
     st.markdown(f"""
-    <div class="card" style="position:relative;">
+    <div class="card">
         <div class="kicker">{kicker}</div>
+        <div style="font-size:1.2rem; font-weight:700; margin:0.2rem 0 0 0;">
+            {title}
+        </div>
         <div style="font-size:1rem; font-weight:600; margin-bottom:0.6rem;">
             {subtitle}
         </div>
-        <p style="color:rgba(0,0,0,0.65); line-height:1.5; font-size:0.95rem; margin-bottom:0;">
+        <p style="color:rgba(0,0,0,0.65); line-height:1.5; font-size:0.95rem; margin:0;">
             {desc}
         </p>
     </div>
     """, unsafe_allow_html=True)
 
     # 透明リンクをオーバーレイ
-    st.page_link(page, label="\u200b", icon=None)
+    st.page_link(page, label="\u200b", icon=None)  # ラベルはゼロ幅スペース
+
 
 
 with col1:
