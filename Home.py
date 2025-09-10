@@ -63,7 +63,7 @@ a[href^="https://"] { text-decoration: none; }
 """, unsafe_allow_html=True)
 
 # -----------------------------
-st.title("きいてポータル｜市長と議会のことばアーカイブ")
+st.title("きいてポータル｜やまぐち ことばアーカイブ")
 st.markdown('<div class="hero small-muted">市長や議員の発言を検索・分析できるサイトです。政策やまちづくりに関する議論を、もっと身近に。</div>', unsafe_allow_html=True)
 st.divider()
 
@@ -82,12 +82,17 @@ def page_link_safe(target: str, label: str, icon: str = "➡️"):
         st.caption("※ このアプリのマルチページ構成でご利用ください。")
 
 with col1:
-    st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<span class="kicker">👔 行政</span>', unsafe_allow_html=True)
-    st.markdown("### 聞いてミライ｜市長の発言を探す")
-    st.write("施政方針や記者会見をRAGで検索。タグ・年度で絞り込み、要点要約で素早く把握できます。")
-    page_link_safe(APP_MAYOR_PATH, "市長の発言を見る")
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown(f"""
+    <a href="{APP_MAYOR_PATH}" target="_self" style="text-decoration: none; color: inherit;">
+    <div class="card">
+        <div class="kicker">👔 行政</div>
+        <h3>聞いてミライ｜市長の発言を探す</h3>
+        <p>施政方針や記者会見をRAGで検索。タグ・年度で絞り込み、要点要約で素早く把握できます。</p>
+        <p><b>市長の発言を見る ➡️</b></p>
+    </div>
+    </a>
+    """, unsafe_allow_html=True)
+
 
 with col2:
     st.markdown('<div class="card">', unsafe_allow_html=True)
