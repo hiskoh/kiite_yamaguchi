@@ -1,4 +1,3 @@
-# Home.py もしくは pages/00_トップページ.py
 import streamlit as st
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -13,22 +12,26 @@ APP_SUMMARY_PATH = "pages/03_頻出発言ダッシュボード｜ことばの傾
 # ---------- Style ----------
 st.markdown("""
 <style>
-.small-muted { color: rgba(0,0,0,0.55); font-size: .9rem; }
-.hero { padding: .4rem 0 .2rem 0; }
-
-/* container(border=True) をカードっぽく */
-div[data-testid="stContainer"] > div:has(> .card-inner) {
-  padding: 1.1rem !important;
-  border: 1px solid rgba(0,0,0,.12) !important;
-  border-radius: 14px !important;
-  background: #fff !important;
-  box-shadow: 0 1px 4px rgba(0,0,0,.04) !important;
-  transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease;
+/* ボタン (= page_link) をリンクっぽい見た目に */
+a[data-testid="stPageLink"]{
+  display:block;
+  width:100%;
+  text-align:left;                /* 左寄せにしてリンク感 */
+  margin-top:.8rem;               /* 上に半行くらい余白 */
+  padding:.4rem .2rem;
+  border:none;
+  background:transparent;         /* 背景なし */
+  color:rgba(0,0,0,.55);          /* 薄めのグレー文字 */
+  font-weight:500;
+  text-decoration:none !important;
 }
-div[data-testid="stContainer"] > div:has(> .card-inner):hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(0,0,0,.08);
-  border-color: rgba(15,103,255,.35);
+a[data-testid="stPageLink"]:hover{
+  color:rgba(15,103,255,.85);     /* hoverで青っぽく */
+  text-decoration:underline;      /* 下線でリンク感 */
+}
+</style>
+""", unsafe_allow_html=True)
+lor: rgba(15,103,255,.35);
 }
 
 /* バッジ */
@@ -51,7 +54,6 @@ a[data-testid="stPageLink"]:hover{ background:#EEF3FF; border-color:rgba(15,103,
 
 st.title("きいてポータル｜やまぐち ことばアーカイブ")
 st.markdown('<div class="hero small-muted">市長や議員の発言を検索・分析できるサイトです。政策やまちづくりに関する議論を、もっと身近に。</div>', unsafe_allow_html=True)
-st.divider()
 
 # ---------- カード描画 ----------
 def card_with_link(page: str, kicker: str, title: str, desc: str, link_label: str):
