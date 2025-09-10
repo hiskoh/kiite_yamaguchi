@@ -83,16 +83,19 @@ def page_link_safe(target: str, label: str, icon: str = "➡️"):
         
 def card_link(page: str, kicker: str, title: str, subtitle: str, desc: str):
     st.markdown(f"""
-    <div class="card" onclick="window.location.href='{page}'" style="cursor:pointer;">
+    <div class="card">
         <div class="kicker">{kicker}</div>
-        <div style="font-size:1.2rem; font-weight:700; margin:0.2rem 0;">{title}</div>
-        <div style="font-size:1rem; font-weight:600; margin-bottom:0.6rem;">{subtitle}</div>
-        <p style="color:rgba(0,0,0,0.65); line-height:1.5; font-size:0.95rem;">
+        <div style="font-size:1.15rem; font-weight:700; margin:0.4rem 0;">
+            {title}&nbsp;{subtitle}
+        </div>
+        <p style="color:rgba(0,0,0,0.65); line-height:1.5; font-size:0.95rem; margin-bottom:0.6rem;">
             {desc}
         </p>
     </div>
     """, unsafe_allow_html=True)
-    
+    # カードの下に page_link_safe を配置（見た目はカード内に見える）
+    page_link_safe(page, f"{title} {subtitle} を見る")
+
 with col1:
     card_link(
         APP_MAYOR_PATH,
