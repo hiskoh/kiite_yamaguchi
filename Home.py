@@ -82,19 +82,26 @@ def page_link_safe(target: str, label: str, icon: str = "➡️"):
         st.caption("※ このアプリのマルチページ構成でご利用ください。")
         
 def card_link(page: str, kicker: str, title: str, subtitle: str, desc: str):
+    # カードの上半分（kicker, title, subtitle, 説明）
     st.markdown(f"""
     <div class="card">
         <div class="kicker">{kicker}</div>
-        <div style="font-size:1.15rem; font-weight:700; margin:0.4rem 0;">
-            {title}&nbsp;{subtitle}
+        <div style="font-size:1.2rem; font-weight:700; margin:0.2rem 0 0 0;">
+            {title}
         </div>
-        <p style="color:rgba(0,0,0,0.65); line-height:1.5; font-size:0.95rem; margin-bottom:0.6rem;">
+        <div style="font-size:1rem; font-weight:600; margin-bottom:0.6rem;">
+            {subtitle}
+        </div>
+        <p style="color:rgba(0,0,0,0.65); line-height:1.5; font-size:0.95rem; margin-bottom:0.8rem;">
             {desc}
         </p>
-    </div>
     """, unsafe_allow_html=True)
-    # カードの下に page_link_safe を配置（見た目はカード内に見える）
-    page_link_safe(page, f"{title} {subtitle} を見る")
+
+    # リンク部分（カードの中に見せたいので margin を調整）
+    page_link_safe(page, f"{subtitle} を見る")
+
+    # カード閉じタグ
+    st.markdown("</div>", unsafe_allow_html=True)
 
 with col1:
     card_link(
