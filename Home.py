@@ -337,7 +337,7 @@ elif st.session_state.last_answer:
         date = m.get("date")
         
         # 表示を「トピック <日付：ファイル名>」に変換
-        source = f"""  <span style="font-size:0.9em; color:gray;">{date}：{source_file}</span> """
+        source = f"""  <span style="font-size:0.9em; color:gray;">{source_file}</span> """
         
         with st.expander(topic, expanded=False):
             st.markdown(m["text"])
