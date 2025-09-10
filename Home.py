@@ -52,24 +52,42 @@ st.divider()
 
 # ---------- ヘルパー（カード=クリックで遷移） ----------
 def card_navigate(page_py: str, kicker: str, title: str, desc: str, key: str):
-    # カード本体（見た目）
     st.markdown(f"""
-    <div class="card">
+    <style>
+      .card-{key} {{
+        position: relative;
+        border: 1px solid #e6e6e6;
+        border-radius: 12px;
+        padding: 14px 16px;
+        background: #fff;
+        transition: box-shadow .15s ease, transform .05s ease;
+        cursor: pointer;
+      }}
+      .card-{key}:hover {{ box-shadow: 0 2px 14px rgba(0,0,0,.08); }}
+      .card-{key} .kicker {{
+        font-size:.8rem; font-weight:700; color:#6b7280; letter-spacing:.04em;
+        text-transform:uppercase;
+      }}
+      /* 透明ボタンを全面に敷く */
+      .card-{key} > button {{
+        position:absolute; inset:0; opacity:0; border:none; background:transparent;
+        width:100%; height:100%; padding:0; margin:0; cursor:pointer;
+      }}
+    </style>
+    <div class="card-{key}">
       <div class="kicker">{kicker}</div>
       <div style="font-size:1.15rem; font-weight:700; margin:.2rem 0 0 0;">{title}</div>
       <p style="color:rgba(0,0,0,.65); line-height:1.5; font-size:.95rem; margin:0;">
         {desc}
       </p>
-    </div>
     """, unsafe_allow_html=True)
 
     # 透明ボタン（カード全面を覆う）
-    if hasattr(st, "switch_page"):
-        if st.button(" ", key=key):           # ラベルは空でOK（CSSで透明）
-            st.switch_page(page_py)
-    else:
-        # 古い環境用フォールバック（ボタン表示でOKならこちら）
-        st.page_link(page_py, label="➡️ ページを開く")
+    clicked = st.button(" ", key=f"btn-{key}")
+    st.markdown("</div>", unsafe_allow_html=True)  # ↑のカードDIVを閉じる
+
+    if clicked:
+        st.switch_page(page_py)
 
 # ---------- 3カード ----------
 col1, col2, col3 = st.columns(3, gap="large")
