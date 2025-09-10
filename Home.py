@@ -6,15 +6,15 @@ from datetime import datetime
 # 基本設定
 # -----------------------------
 st.set_page_config(
-    page_title="聞いてポータル｜市長と議会のことばアーカイブ",
+    page_title="きいてポータル｜やまぐち ことばアーカイブ",
     page_icon="🗣️",
     layout="wide"
 )
 
 NOTION_URL = "https://fortune-orangutan-6aa.notion.site/1d0311267344808db873ff8af9b67365"
-APP_MAYOR_PATH = "pages/01_きいてミライ｜市長の発言を探す.py"       # 市長ページのパス
-APP_COUNCIL_PATH = "02_きいてギカイ｜議員の発言を探す.py"   # 議員ページのパス
-APP_SUMMARY_PATH = "03_頻出発言ダッシュボード｜ことばの傾向を知る.py"   # 発言まとめページのパス
+APP_MAYOR_PATH = "pages/01_きいてミライ｜市長の発言を探す.py"               # 市長ページのパス
+APP_COUNCIL_PATH = "pages/02_きいてギカイ｜議員の発言を探す.py"             # 議員ページのパス
+APP_SUMMARY_PATH = "pages/03_頻出発言ダッシュボード｜ことばの傾向を知る.py"  # 発言まとめページのパス
 
 # -----------------------------
 # スタイル（軽いカード風）
@@ -46,8 +46,6 @@ a[href^="https://"] { text-decoration: none; }
 """, unsafe_allow_html=True)
 
 # -----------------------------
-# ヒーロー
-# -----------------------------
 st.title("きいてポータル｜市長と議会のことばアーカイブ")
 st.markdown('<div class="hero small-muted">市長や議員の発言を検索・分析できるサイトです。政策やまちづくりに関する議論を、もっと身近に。</div>', unsafe_allow_html=True)
 st.divider()
@@ -69,7 +67,7 @@ def page_link_safe(target: str, label: str, icon: str = "➡️"):
 
 with col1:
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="kicker">👔 MAYOR</div>', unsafe_allow_html=True)
+    st.markdown('<div class="kicker">👔 行政</div>', unsafe_allow_html=True)
     st.markdown("### 聞いてミライ｜市長の発言を探す")
     st.write("施政方針や記者会見をRAGで検索。タグ・年度で絞り込み、要点要約で素早く把握できます。")
     page_link_safe(APP_MAYOR_PATH, "市長の発言を見る")
@@ -77,7 +75,7 @@ with col1:
 
 with col2:
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.markdown('<div class="kicker">🏛 COUNCIL</div>', unsafe_allow_html=True)
+    st.markdown('<div class="kicker">🏛 議会</div>', unsafe_allow_html=True)
     st.markdown("### 聞いてギカイ｜議員の発言を探す")
     st.write("会派・議員名・定例会で検索。質問と答弁のペア表示で、議論の流れが一目で分かります。")
     page_link_safe(APP_COUNCIL_PATH, "議員の発言を見る")
