@@ -127,8 +127,7 @@ def card_with_link(page_py: str, kicker: str, title: str, desc: str, link_label:
 # ヘッダー
 # -----------------------------
 st.title("きいてポータル｜やまぐち ことばアーカイブ")
-st.markdown('<div class="hero small-muted">市長や議員の発言を検索・分析できるサイトです。政策やまちづくりに関する議論を、もっと身近に。</div>', unsafe_allow_html=True)
-st.empty()
+st.markdown('<div class="hero small-muted">市長や議員の発言を検索・分析できるサイトです。政策やまちづくりに関する議論を、もっと身近に。\n　</div>', unsafe_allow_html=True)
 
 # -----------------------------
 # 3カード
