@@ -57,7 +57,6 @@ div[data-testid="stContainer"] > div:has(> .card-inner):hover {
   display: block !important;
   width: 100% !important;
   text-align: left !important;
-  margin-top: .12rem !important;    /* 半行程度の余白 */
   padding: .4rem .2rem !important;
   background: transparent !important;
   border: none !important;
@@ -128,7 +127,7 @@ def card_with_link(page_py: str, kicker: str, title: str, desc: str, link_label:
 # ヘッダー
 # -----------------------------
 st.title("きいてポータル｜やまぐち ことばアーカイブ")
-st.markdown('<div class="hero small-muted">市長や議員の発言を検索・分析できるサイトです。政策やまちづくりに関する議論を、もっと身近に。\n　</div>', unsafe_allow_html=True)
+st.markdown('<div class="hero small-muted">市長や議員の発言を検索・分析できるサイトです。政策やまちづくりに関する議論を、もっと身近に。\n \n　</div>', unsafe_allow_html=True)
 
 # -----------------------------
 # 3カード
