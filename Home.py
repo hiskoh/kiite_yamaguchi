@@ -3,145 +3,107 @@ import streamlit as st
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-# -----------------------------
-# 基本設定
-# -----------------------------
-st.set_page_config(
-    page_title="きいてポータル｜やまぐち ことばアーカイブ",
-    page_icon="🗣️",
-    layout="wide"
-)
+st.set_page_config(page_title="きいてポータル｜やまぐち ことばアーカイブ", page_icon="🗣️", layout="wide")
 
 NOTION_URL = "https://fortune-orangutan-6aa.notion.site/1d0311267344808db873ff8af9b67365"
-APP_MAYOR_PATH = "pages/01_きいてミライ｜市長の発言を探す.py"
+APP_MAYOR_PATH   = "pages/01_きいてミライ｜市長の発言を探す.py"
 APP_COUNCIL_PATH = "pages/02_きいてギカイ｜議員の発言を探す.py"
 APP_SUMMARY_PATH = "pages/03_頻出発言ダッシュボード｜ことばの傾向を知る.py"
 
-# -----------------------------
-# スタイル（カード枠＋軽いホバー）
-# -----------------------------
+# ---------- CSS（カード & 透明ボタンのオーバーレイ） ----------
 st.markdown("""
 <style>
-.small-muted { color: rgba(0,0,0,0.55); font-size: 0.9rem; }
-.hero { padding: 0.4rem 0 0.2rem 0; }
-a[href^="https://"] { text-decoration: none; }
+.small-muted { color: rgba(0,0,0,0.55); font-size: .9rem; }
+.hero { padding: .4rem 0 .2rem 0; }
 
-/* カード */
 .card {
-  padding: 1.1rem 1.1rem 1.0rem 1.1rem;
-  border: 1px solid rgba(0,0,0,0.12);
+  position: relative;               /* ← オーバーレイの基準 */
+  padding: 1.1rem;
+  border: 1px solid rgba(0,0,0,.12);
   border-radius: 14px;
   background: #fff;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  box-shadow: 0 1px 4px rgba(0,0,0,.04);
   transition: transform .08s ease, box-shadow .12s ease, border-color .12s ease;
   height: 100%;
-  display: flex; flex-direction: column; gap: .6rem;
 }
 .card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
-  border-color: rgba(15,103,255,0.35);
+  box-shadow: 0 6px 18px rgba(0,0,0,.08);
+  border-color: rgba(15,103,255,.35);
 }
-
-/* セクションラベル */
 .kicker {
-  font-size: 0.9rem;
-  letter-spacing: .04em;
-  font-weight: 700;
-  color:#1a57ff;
+  font-size: .9rem; letter-spacing: .04em; font-weight: 700;
+  display:inline-block; padding:.18rem .5rem; border-radius:999px;
+  border:1px solid #D5E2FF; background:#EEF3FF; color:#1a57ff;
 }
 
-/* page_link をボタン風＆フル幅に */
-a[data-testid="stPageLink"] {
-  display: inline-block;
-  text-decoration: none !important;
-  border: 1px solid rgba(0,0,0,0.12);
-  background: #F7F9FF;
-  padding: .6rem 1rem;
-  border-radius: 12px;
-  text-align: center;
-  width: 100%;
-  font-weight: 600;
-}
-a[data-testid="stPageLink"]:hover {
-  background: #EEF3FF;
-  border-color: rgba(15,103,255,0.35);
+/* カード内に置いた st.button を“透明オーバーレイ”化して、カード全面をクリック可能にする */
+.card .stButton > button {
+  position: absolute; inset: 0;     /* カード全面を覆う */
+  opacity: 0;                       /* 完全透明（見た目は消える）*/
+  cursor: pointer;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# -----------------------------
 st.title("きいてポータル｜やまぐち ことばアーカイブ")
 st.markdown('<div class="hero small-muted">市長や議員の発言を検索・分析できるサイトです。政策やまちづくりに関する議論を、もっと身近に。</div>', unsafe_allow_html=True)
 st.divider()
 
-# -----------------------------
-# ヘルパー
-# -----------------------------
-def card_with_pagelink(page: str, kicker: str, title: str, desc: str, link_label: str):
-    """
-    カードを1つ描画し、その中に st.page_link を内包させる（確実に遷移）。
-    説明文は薄いグレー。
-    """
+# ---------- ヘルパー（カード=クリックで遷移） ----------
+def card_navigate(page_py: str, kicker: str, title: str, desc: str, key: str):
+    # カード本体（見た目）
     st.markdown(f"""
     <div class="card">
-        <div class="kicker">{kicker}</div>
-        <div style="font-size:1.15rem; font-weight:700; margin:0.2rem 0 0 0;">
-            {title}
-        </div>
-        <p style="color:rgba(0,0,0,0.65); line-height:1.5; font-size:0.95rem; margin:0 0 .2rem 0;">
-            {desc}
-        </p>
+      <div class="kicker">{kicker}</div>
+      <div style="font-size:1.15rem; font-weight:700; margin:.2rem 0 0 0;">{title}</div>
+      <p style="color:rgba(0,0,0,.65); line-height:1.5; font-size:.95rem; margin:0;">
+        {desc}
+      </p>
+    </div>
     """, unsafe_allow_html=True)
 
-    # ここで page_link を呼ぶと、見た目はカード内の「ボタン」として表示され、確実に multipage 遷移します
-    try:
-        st.page_link(page, label=link_label, icon="➡️")
-    except Exception:
-        # かなり古い Streamlit 環境のフォールバック（遷移はできないが見た目は維持）
-        st.link_button(link_label + " ➡️", "#")
-        st.caption("※ このアプリのマルチページ構成でご利用ください。")
+    # 透明ボタン（カード全面を覆う）
+    if hasattr(st, "switch_page"):
+        if st.button(" ", key=key):           # ラベルは空でOK（CSSで透明）
+            st.switch_page(page_py)
+    else:
+        # 古い環境用フォールバック（ボタン表示でOKならこちら）
+        st.page_link(page_py, label="➡️ ページを開く")
 
-    # カード閉じ
-    st.markdown("</div>", unsafe_allow_html=True)
-
-# -----------------------------
-# 3カード（市長／議員／まとめ）
-# -----------------------------
+# ---------- 3カード ----------
 col1, col2, col3 = st.columns(3, gap="large")
 
 with col1:
-    card_with_pagelink(
-        page=APP_MAYOR_PATH,
+    card_navigate(
+        page_py=APP_MAYOR_PATH,
         kicker="👔 市長の発言を探す",
         title="聞いてミライ",
         desc="施政方針や記者会見をRAGで検索。タグ・年度で絞り込み、要点要約で素早く把握できます。",
-        link_label="市長の発言を見る"
+        key="go_mayor"
     )
 
 with col2:
-    card_with_pagelink(
-        page=APP_COUNCIL_PATH,
-        kicker="🏛 市議の発言を探す",
+    card_navigate(
+        page_py=APP_COUNCIL_PATH,
+        kicker="🏛 議員の発言を探す",
         title="聞いてギカイ",
         desc="会派・議員名・定例会で検索。質問と答弁のペア表示で、議論の流れが一目で分かります。",
-        link_label="議員の発言を見る"
+        key="go_council"
     )
 
 with col3:
-    card_with_pagelink(
-        page=APP_SUMMARY_PATH,
+    card_navigate(
+        page_py=APP_SUMMARY_PATH,
         kicker="📊 ことばの傾向を知る",
         title="頻出発言ダッシュボード",
         desc="頻出ワード、共起ネットワーク、テーマの時系列推移、質問スタイル分析などを可視化。",
-        link_label="発言をまとめて見る"
+        key="go_summary"
     )
 
 st.divider()
 
-# -----------------------------
-# 概要 & Notionリンク
-# -----------------------------
+# ---------- 概要 & Notion ----------
 st.subheader("このサイトについて")
 st.write(
     "「きいてポータル」は、**市長や議員の発言を検索・分析できるアーカイブ**です。"
@@ -154,18 +116,11 @@ st.write(
 )
 st.write(f'🔗[本プロジェクトの詳細はこちら]({NOTION_URL})')
 
-# -----------------------------
-# フッター（JST）
-# -----------------------------
+# ---------- フッター（JST） ----------
 st.markdown("---")
-cols = st.columns([1,1,1,2])
-with cols[0]:
-    st.write("© 2025 きいてポータル")
-with cols[1]:
-    st.write("Made with Streamlit")
-with cols[3]:
+c1, c2, c3, c4 = st.columns([1,1,1,2])
+with c1: st.write("© 2025 きいてポータル")
+with c2: st.write("Made with Streamlit")
+with c4:
     jst_now = datetime.now(ZoneInfo("Asia/Tokyo"))
-    st.markdown(
-        f'<span class="small-muted">最終更新: {jst_now.strftime("%Y-%m-%d %H:%M")} JST</span>',
-        unsafe_allow_html=True
-    )
+    st.markdown(f'<span class="small-muted">最終更新: {jst_now.strftime("%Y-%m-%d %H:%M")} JST</span>', unsafe_allow_html=True)
