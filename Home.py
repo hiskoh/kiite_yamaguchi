@@ -121,8 +121,8 @@ def card_with_link(page_py: str, kicker: str, title: str, desc: str, link_label:
         # ▼ ここで page_link をラップして余白＋スタイルを確実に適用
         st.markdown('<div class="link-wrap">', unsafe_allow_html=True)
         page_link_safe_mp(page_py, link_label)
-        st.markdown('</div>', unsafe_allow_html=True)
-
+        st.markdown('</div>', unsafe_allow_html=True)    
+        st.empty()
 # -----------------------------
 # ヘッダー
 # -----------------------------
