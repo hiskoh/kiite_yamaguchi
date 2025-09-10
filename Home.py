@@ -332,7 +332,18 @@ elif st.session_state.last_answer:
 
     st.markdown("---\n\n#### 📂 詳細内容")
     for m in st.session_state.last_matches:
-        with st.expander(f" {m.get('topic', '未分類')}（{m.get('source_file', '')}）"):
+        topic = m.get("topic", "未分類")
+        source_file = m.get("source_file", "")
+        date = m.get("date")
+        
+        # 表示を「トピック <日付：ファイル名>」に変換
+        header_html = f"""
+        <span style="font-size:1em;">{topic}</span>
+        <span style="font-size:0.9em; color:gray;"> &lt;{date}：{source_file}&gt;</span>
+        """
+        
+        with st.expander("", expanded=False):
+            st.markdown(header_html, unsafe_allow_html=True)
             st.markdown(m["text"])
 
 st.divider()
