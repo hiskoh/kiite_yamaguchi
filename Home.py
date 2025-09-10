@@ -80,22 +80,27 @@ def page_link_safe(target: str, label: str, icon: str = "➡️"):
         # Multipage未設定環境では見た目だけのリンクボタン（遷移しません）
         st.link_button(f"{label} {icon}", url="#")
         st.caption("※ このアプリのマルチページ構成でご利用ください。")
-
-with col1:
+        
+def card_link(page: str, kicker: str, title: str, subtitle: str, desc: str):
     st.markdown(f"""
-    <a href="{APP_MAYOR_PATH}" target="_self" style="text-decoration: none; color: inherit;">
-    <div class="card">
-        <div class="kicker">👔 行政</div>
-        <h4 style="margin:0.2rem 0;">聞いてミライ</h4>
-        <div style="font-size:1rem; font-weight:600; margin-bottom:0.6rem;">市長の発言を探す</div>
+    <div class="card" onclick="window.location.href='{page}'" style="cursor:pointer;">
+        <div class="kicker">{kicker}</div>
+        <div style="font-size:1.2rem; font-weight:700; margin:0.2rem 0;">{title}</div>
+        <div style="font-size:1rem; font-weight:600; margin-bottom:0.6rem;">{subtitle}</div>
         <p style="color:rgba(0,0,0,0.65); line-height:1.5; font-size:0.95rem;">
-            施政方針や記者会見をRAGで検索。タグ・年度で絞り込み、要点要約で素早く把握できます。
+            {desc}
         </p>
-        <p style="font-weight:600; margin-top:0.6rem;">市長の発言を見る ➡️</p>
     </div>
-    </a>
     """, unsafe_allow_html=True)
-
+    
+with col1:
+    card_link(
+        APP_MAYOR_PATH,
+        "👔 行政",
+        "聞いてミライ",
+        "市長の発言を探す",
+        "施政方針や記者会見をRAGで検索。タグ・年度で絞り込み、要点要約で素早く把握できます。"
+    )
 
 with col2:
     st.markdown('<div class="card">', unsafe_allow_html=True)
