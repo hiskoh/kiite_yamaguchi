@@ -22,7 +22,7 @@ APP_SUMMARY_PATH = "pages/03_頻出発言ダッシュボード.py"
 # -----------------------------
 st.markdown("""
 <style>
-.small-muted { color: rgba(0,0,0,0.55); font-size: .9rem; }
+.small-muted { color: rgba(0,0,0,0.55); font-size: .9rem; margin: .4rem 0 .8rem 0; }
 .hero { padding: .4rem 0 .2rem 0; }
 
 /* container(border=True) をカードっぽく */
@@ -111,7 +111,7 @@ def card_with_link(page_py: str, kicker: str, title: str, desc: str, link_label:
               <div style="font-size:1.15rem; font-weight:700; margin:.2rem 2rem 0 0;">
                 {title}
               </div>
-              <p style="color:rgba(0,0,0,.65); line-height:1.5; font-size:.95rem; margin:.4rem 0 8rem 0;">
+              <p style="color:rgba(0,0,0,.65); line-height:1.5; font-size:.95rem; margin:.4rem 0 0 0;">
                 {desc}
               </p>
             </div>
