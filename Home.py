@@ -17,9 +17,25 @@ APP_MAYOR_PATH = "pages/01_きいてミライ｜市長の発言を探す.py"    
 APP_COUNCIL_PATH = "pages/02_きいてギカイ｜議員の発言を探す.py"             # 議員ページのパス
 APP_SUMMARY_PATH = "pages/03_頻出発言ダッシュボード｜ことばの傾向を知る.py"  # 発言まとめページのパス
 
+
 # -----------------------------
 # スタイル（カード枠＋軽いホバー）
 # -----------------------------
+
+# 透明な page_link をカード全面にかぶせるためのCSS
+st.markdown("""
+<style>
+/* st.page_link が吐くラッパーをカード全面に拡張して透明化 */
+a.st-emotion-cache-1cypcdb, button.st-emotion-cache-1cypcdb,
+a.st-emotion-cache-1jicfl2, button.st-emotion-cache-1jicfl2 { /* バージョン差異に対応して2候補 */
+  position: absolute !important;
+  inset: 0 !important;           /* top:0; right:0; bottom:0; left:0 と同じ */
+  opacity: 0 !important;         /* 見えないがクリックは有効 */
+}
+</style>
+""", unsafe_allow_html=True)
+
+
 st.markdown("""
 <style>
 .small-muted { color: rgba(0,0,0,0.55); font-size: 0.9rem; }
