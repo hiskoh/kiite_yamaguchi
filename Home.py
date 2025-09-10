@@ -16,7 +16,7 @@ st.set_page_config(page_title="きいてミライ（β）", layout="wide", page_
 #検索結果の設定
 TOP_N_RETURN       = 10          # 最終的に返す件数
 SIM_THRESHOLD      = 0.80        # 類似度のしきい値（0.0～1.0）
-TOPK_CANDIDATES    = 100         # S3Vectorsから一旦取り寄せる候補数（多めに）
+TOPK_CANDIDATES    = 30         # S3Vectorsから一旦取り寄せる候補数（多めに）
 
 #ChatGPTの設定
 GPT_MODEL = "gpt-4.1-mini"
@@ -198,10 +198,10 @@ def search_s3vector_and_respond(query):
             score_threshold=SIM_THRESHOLD   # 0.80
         )
     except Exception as e:
-        return {"matches": [], "summary": f"🔍 S3 Vectors 検索でエラーが発生しました: {e}"}
+        return {"matches": [], "summary": f"🔍 検索エラーが発生しました: {e}"}
 
     if not hits:
-        return {"matches": [], "summary": "🔍 類似度0.80以上の発言は見つかりませんでした。"}
+        return {"matches": [], "summary": "🔍 類似度の高い発言は見つかりませんでした。"}
 
     # ✅ 類似度で降順 → 上位10件だけ
     top_hits = hits[:TOP_N_RETURN]
