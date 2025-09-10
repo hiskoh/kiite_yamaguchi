@@ -111,7 +111,7 @@ def card_with_link(page_py: str, kicker: str, title: str, desc: str, link_label:
               <div style="font-size:1.15rem; font-weight:700; margin:.2rem 2rem 0 0;">
                 {title}
               </div>
-              <p style="color:rgba(0,0,0,.65); line-height:1.5; font-size:.95rem; margin:.4rem 0 0 0;">
+              <p style="color:rgba(0,0,0,.65); line-height:1.5; font-size:.95rem; margin-bottom:.8rem; margin:.4rem 0 0 0;">
                 {desc}
               </p>
             </div>
@@ -127,7 +127,7 @@ def card_with_link(page_py: str, kicker: str, title: str, desc: str, link_label:
 # ヘッダー
 # -----------------------------
 st.title("きいてポータル｜やまぐち ことばアーカイブ")
-st.markdown('<div class="hero small-muted">市長や議員の発言を検索・分析できるサイトです。政策やまちづくりに関する議論を、もっと身近に。\n  </div>', unsafe_allow_html=True)
+st.markdown('<div class="hero small-muted">市長や議員の発言を検索・分析できるサイトです。政策やまちづくりに関する議論を、もっと身近に。 </div>', unsafe_allow_html=True)
 
 # -----------------------------
 # 3カード
@@ -138,8 +138,8 @@ with c1:
     card_with_link(
         page_py=APP_MAYOR_PATH,
         kicker="👔 市長の発言を探す",
-        title="聞いてミライ",
-        desc="施政方針や記者会見をRAGで検索。タグ・年度で絞り込み、要点要約で素早く把握できます。",
+        title="きいてミライ",
+        desc="施政方針や記者会見をRAGで検索。要点要約で素早く把握できます。",
         link_label="市長の発言を見る",
     )
 
@@ -147,7 +147,7 @@ with c2:
     card_with_link(
         page_py=APP_COUNCIL_PATH,
         kicker="🏛 議員の発言を探す",
-        title="聞いてギカイ",
+        title="きいてギカイ",
         desc="会派・議員名・定例会で検索。質問と答弁のペア表示で、議論の流れが一目で分かります。",
         link_label="議員の発言を見る",
     )
