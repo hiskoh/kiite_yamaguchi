@@ -97,16 +97,13 @@ def page_link_safe(target: str, label: str, icon: str = "➡️"):
         st.link_button(f"{label} {icon}", url="#")
         st.caption("※ このアプリのマルチページ構成でご利用ください。")
         
-def card_link(page: str, kicker: str, title: str, subtitle: str, desc: str):
+def card_link(page: str, kicker: str, title: str, desc: str):
     # カード本体
     st.markdown(f"""
     <div class="card">
         <div class="kicker">{kicker}</div>
         <div style="font-size:1.2rem; font-weight:700; margin:0.2rem 0 0 0;">
             {title}
-        </div>
-        <div style="font-size:1rem; font-weight:600; margin-bottom:0.6rem;">
-            {subtitle}
         </div>
         <p style="color:rgba(0,0,0,0.65); line-height:1.5; font-size:0.95rem; margin:0;">
             {desc}
