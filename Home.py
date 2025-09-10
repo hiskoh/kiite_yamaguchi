@@ -333,19 +333,19 @@ if st.session_state.input and st.session_state.send_now:
     st.session_state.input_value = ""
     st.session_state.is_generating = False
 
-st.markdown("#### 💡 要約まとめ")
+st.markdown("#### 💡 市長発言のまとめ")
 if st.session_state.is_generating:
     st.info("⏳ 回答中... 少々お待ちください")
 elif st.session_state.last_answer:
     st.success(st.session_state.last_answer)
 
-    st.markdown("---\n\n#### 📂 詳細内容")
+    st.markdown("---\n\n#### 📂 関連発言の詳細")
     for m in st.session_state.last_matches:
         topic = m.get("topic", "未分類")
         source_file = m.get("source_file", "").replace('.txt','')
         date = m.get("date")
         
-        # 表示を「トピック <日付：ファイル名>」に変換
+        # 出典情報
         source = f"""  <span style="font-size:0.9em; color:gray;">{source_file}</span> """
         
         with st.expander(topic, expanded=False):
