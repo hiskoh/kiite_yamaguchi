@@ -342,7 +342,7 @@ elif st.session_state.last_answer:
         <span style="font-size:0.9em; color:gray;"> &lt;{date}：{source_file}&gt;</span>
         """
         
-        with st.expander("", expanded=False):
+        with st.expander(header_html, expanded=False):
             st.markdown(header_html, unsafe_allow_html=True)
             st.markdown(m["text"])
 
