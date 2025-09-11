@@ -376,6 +376,7 @@ elif st.session_state.last_answer:
         for m in items:
             source_file = m.get("source_file", "").replace(".txt", "")
             date = m.get("date")
+            topic = m.get("topic", "未分類")
             # expander の見出し（タイトル優先→スニペット→source_file）
             header = m.get("title") or m.get("snippet") or source_file or "関連発言"
 
