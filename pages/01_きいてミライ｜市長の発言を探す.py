@@ -360,11 +360,10 @@ st.markdown("#### 💡 市長発言のまとめ")
 if st.session_state.is_generating:
     st.info("⏳ 回答中... 少々お待ちください")
 elif st.session_state.last_answer:
-    st.caption("入力された質問に対して、AIが類似度が高いと判断した発言のうち、上位10件の要約です")
     st.success(st.session_state.last_answer)  # ← サマリ本文の出力位置
-
+    st.caption("入力された質問に対して、AIが類似度が高いと判断した発言のうち、上位10件の要約です")
+    
     st.subheader("関連発言の詳細")
-    st.caption("入力された質問に対して、AIが類似度が高いと判断した発言のうち、上位10件を表示しています")
                 
     # 1) まず分類
     press_items = []    # 定例会見
@@ -389,7 +388,7 @@ elif st.session_state.last_answer:
 
     # 2) タブで分けて表示
     tabs = st.tabs([f"定例会見（{len(press_items)}）", f"議会発言（{len(council_items)}）"])
-
+    
     with tabs[0]:
         render_items(press_items)
         # 一次ソースを明示
@@ -414,6 +413,8 @@ elif st.session_state.last_answer:
             """,
             unsafe_allow_html=True,
         )
+        
+    st.caption("入力された質問に対して、AIが類似度が高いと判断した発言のうち、上位10件を表示しています")
 
 
             
