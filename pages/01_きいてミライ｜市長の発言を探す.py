@@ -25,7 +25,7 @@ EMBED_MODEL         = "text-embedding-3-small"
 
 #AWSの設定
 AWS_REGION          = "us-west-2"
-OUTPUT_PREFIX       = "02_chunk_jsonl/" 
+OUTPUT_PREFIX       = "mayor_chunk_jsonl/" 
 SCORE_THRESHOLD     = 0.0
 AWS_ACCESS_KEY_S    = st.secrets["AWS-KEY"]["AWS_ACCESS_KEY"]
 AWS_SECRET_KEY_S    = st.secrets["AWS-KEY"]["AWS_SECRET_KEY"]
