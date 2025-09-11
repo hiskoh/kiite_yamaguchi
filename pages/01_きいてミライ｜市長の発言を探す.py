@@ -360,19 +360,10 @@ st.markdown("#### 💡 市長発言のまとめ")
 if st.session_state.is_generating:
     st.info("⏳ 回答中... 少々お待ちください")
 elif st.session_state.last_answer:
-    st.markdown("""
-    <p style="color:gray; margin-left:1em; font-size:0.9em;">
-    入力された質問に対して、AIが類似度が高いと判断した発言のうち、上位10件の要約です
-    </p>
-    """)
-    st.success(st.session_state.last_answer)
+    st.caption("入力された質問に対して、AIが類似度が高いと判断した発言のうち、上位10件の要約です")
 
     st.subheader("関連発言の詳細")
-    st.markdown("""
-    <p style="color:gray; margin-left:1em; font-size:0.9em;">
-    入力された質問に対して、AIが類似度が高いと判断した発言のうち、上位10件を表示しています
-    </p>
-    """)
+    st.caption("入力された質問に対して、AIが類似度が高いと判断した発言のうち、上位10件を表示しています")
                 
     # 1) まず分類
     press_items = []    # 定例会見
@@ -403,22 +394,49 @@ elif st.session_state.last_answer:
         # 一次ソースを明示
         st.markdown(
             """
-            🔗 **公式情報はこちらからご覧いただけます**  
-            ・ [山口市 市長の部屋 記者会見（市公式HP）](https://www.city.yamaguchi.lg.jp/site/shicho/list68.html)  
-            ・ [市長定例記者会見（市公式YouTube）](youtube.com/playlist?list=PLSBXr_PDKAbMOBbQdeQslWsrmSr-LyOdl)  
+            <div style="
+                background-color:#f5f5f5;
+                border:1px solid #ddd;
+                border-radius:6px;
+                padding:0.8em 1em;
+                margin-top:0.8em;
+                margin-bottom:0.8em;
+                ">
+                🔗 <b>公式情報はこちらからご覧いただけます</b><br>
+                ・ <a href="https://www.city.yamaguchi.lg.jp/site/shicho/list68.html" target="_blank">
+                    山口市 市長の部屋 記者会見（市公式HP）
+                  </a> 
+                ・ <a href="https://www.youtube.com/playlist?list=PLSBXr_PDKAbMOBbQdeQslWsrmSr-LyOdl" target="_blank">
+                    市長定例記者会見（市公式YouTube）
+                  </a>
+            </div>
             """,
             unsafe_allow_html=True,
         )
+
+
+            
     with tabs[1]:
         render_items(council_items)
-        # 一次ソースを明示
         st.markdown(
             """
-            🔗 **公式情報はこちらからご覧いただけます**  
-            ・ [山口市議会 議事録（公式HP）](https://www.city.yamaguchi.yamaguchi.dbsr.jp/index.php/)  
+            <div style="
+                background-color:#f5f5f5;
+                border:1px solid #ddd;
+                border-radius:6px;
+                padding:0.8em 1em;
+                margin-top:0.8em;
+                margin-bottom:0.8em;
+                ">
+                🔗 <b>公式情報はこちらからご覧いただけます</b><br>
+                ・ <a href="https://www.city.yamaguchi.yamaguchi.dbsr.jp/index.php/" target="_blank">
+                    山口市議会 議事録（公式HP）
+                  </a>
+            </div>
             """,
             unsafe_allow_html=True,
         )
+
 
 
 st.divider()
