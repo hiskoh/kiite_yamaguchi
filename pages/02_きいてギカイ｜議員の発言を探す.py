@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import streamlit as st
 import chardet
 from openai import OpenAI
@@ -6,35 +7,33 @@ from oauth2client.service_account import ServiceAccountCredentials
 from googleapiclient.discovery import build
 from google.oauth2.service_account import Credentials
 from datetime import datetime
-import random, json, io, faiss, tempfile, re, boto3, json
+import random, json, io, re, boto3
 import numpy as np
 from googleapiclient.http import MediaIoBaseDownload
 
 st.set_page_config(page_title="きいてギカイやまぐち（β）", layout="wide", page_icon="📜")
 
-
-
 # ====== ▼ 初期値設定 ========================================================
 
-#検索結果の設定
-TOP_N_RETURN   = 10            # 最終返す件数（UIは上位10件でOKならこのまま）
-TOPK_CANDIDATES = 10           # S3Vectorsからの仮取得件数（上位候補を多めに持ってくる）
-SIM_THRESHOLD  = 0.10          # 類似度のしきい値（0.0〜1.0, 1.0に近いほど類似）
+# 検索パラメータ
+TOP_N_RETURN     = 10   # UIに返す上位件数
+TOPK_CANDIDATES  = 40   # S3Vectorsから仮取得する候補の数（TOP_N_RETURN より多めに）
+SIM_THRESHOLD    = 0.10 # 類似度しきい値（0.0〜1.0, 高いほど類似）
 
-#ChatGPTの設定
-GPT_MODEL = "gpt-4.1-mini"
-GPT_TEMPERATURE = 0.1
-EMBED_MODEL    = "text-embedding-3-small"
+# ChatGPT
+GPT_MODEL        = "gpt-4.1-mini"
+GPT_TEMPERATURE  = 0.1
+EMBED_MODEL      = "text-embedding-3-small"
 
-#AWSの設定
-AWS_REGION     = "us-west-2"
-OUTPUT_PREFIX  = "council_chunk_jsonl/"  
+# AWS
+AWS_REGION       = "us-west-2"
+OUTPUT_PREFIX    = "council_chunk_jsonl/"  # ← 実データに合わせる
 AWS_ACCESS_KEY_S = st.secrets["AWS-KEY"]["AWS_ACCESS_KEY"]
 AWS_SECRET_KEY_S = st.secrets["AWS-KEY"]["AWS_SECRET_KEY"]
-DATA_BUCKET_NAME = st.secrets["AWS-KEY"]["DATA_BUCKET_NAME"]
-S3_INDEX_ARN   = st.secrets["AWS-KEY"]["VECTOR_INDEX_ARN_COUNCIL"]
+DATA_BUCKET_NAME = st.secrets["AWS-KEY"]["DATA_BUCKET_NAME"]  # バケット名のみ
+S3_INDEX_ARN     = st.secrets["AWS-KEY"]["VECTOR_INDEX_ARN_COUNCIL"]
 
-# ========= ▼ ここからS3 Vectorsでの検索を実装 ===============================
+# ========= ▼ S3 Vectors 検索ユーティリティ ===============================
 
 def _to_similarity(distance: float) -> float:
     """S3 Vectorsのdistance(=cosine距離) -> 類似度(1 - distance)"""
@@ -47,11 +46,11 @@ def _to_similarity(distance: float) -> float:
 def _base_from_chunk_id(chunk_id: str) -> str:
     # "somefile_001" → "somefile"
     return re.sub(r"_[0-9]{1,3}$", "", chunk_id)
-    
+
 def _fetch_original_chunk_for_search(s3_client, chunk_id: str) -> dict | None:
     """
-    ベクトル検索で得た chunk_id から、元の JSONL を S3 から引き、該当行を返す。
-    形式は Colab の出力と同じ（speaker/speaker_role/pair_id/qa_role を含む）。
+    chunk_id から該当 JSONL を決定し、該当行を返す。
+    （speaker/speaker_role/pair_id/qa_role を含む行）
     """
     base = _base_from_chunk_id(chunk_id)
     key  = f"{OUTPUT_PREFIX}{base}.jsonl"
@@ -81,7 +80,7 @@ def _query_s3vectors(query_text: str, top_k_: int, score_threshold: float):
     emb = oai.embeddings.create(model=EMBED_MODEL, input=query_text)
     qvec = [float(x) for x in emb.data[0].embedding]
 
-    # クライアント（読み取り専用権限でOK）
+    # Boto3 clients
     s3_client = boto3.client(
         "s3",
         aws_access_key_id=AWS_ACCESS_KEY_S,
@@ -95,7 +94,7 @@ def _query_s3vectors(query_text: str, top_k_: int, score_threshold: float):
         region_name=AWS_REGION,
     )
 
-    # 多めに候補取得 → しきい値でフィルタ
+    # 候補を多めに取得 → しきい値でフィルタ
     res = s3v_client.query_vectors(
         indexArn=S3_INDEX_ARN,
         queryVector={"float32": qvec},
@@ -110,12 +109,11 @@ def _query_s3vectors(query_text: str, top_k_: int, score_threshold: float):
         key      = m.get("key") or m.get("id")
         distance = float(m.get("distance", 0.0))
         score    = _to_similarity(distance)
-
         if score < score_threshold:
             continue
 
         md       = m.get("metadata") or {}
-        source   = md.get("source_file")
+        source   = md.get("source_file")   # 表示用には残す
         chunk_id = md.get("chunk_id") or key
         original = _fetch_original_chunk_for_search(s3_client, chunk_id)
 
@@ -128,12 +126,13 @@ def _query_s3vectors(query_text: str, top_k_: int, score_threshold: float):
             "original": original,
         })
 
-    # 類似度が高い順
     out.sort(key=lambda x: x["score"], reverse=True)
     return out
-    
-# ✅ セッションステートの初期化
-for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_generating", "input", "input_value", "suggestions_sampled", "qa_pairs", "clarified", "clarify_active"]:
+
+# ========= ▼ セッション初期化 =============================================
+
+for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_generating",
+            "input", "input_value", "suggestions_sampled", "qa_pairs", "clarified", "clarify_active"]:
     if key not in st.session_state:
         if key in ["query", "last_answer", "input", "input_value"]:
             st.session_state[key] = ""
@@ -146,69 +145,53 @@ for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_ge
         else:
             st.session_state[key] = False
 
-# ✅ プロンプト読み込み関数
-def load_prompt(filename):
-    with open("prompts/" + filename, "r", encoding="utf-8") as f:
-        return f.read()
+# ========= ▼ 各種ユーティリティ ==========================================
 
-# ✅ 同意画面
+def load_prompt(filename, default_text=""):
+    try:
+        with open("prompts/" + filename, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception:
+        return default_text
+
+# 同意画面
 if not st.session_state.agreed:
     st.title("📜きいてギカイやまぐち（β）")
-
     st.markdown("""
     ### ご利用にあたってのご案内
-
     - このチャットでは、山口市議会の議事録をもとに、議会でどんな議論が行われているかを知ることができます。  
     - **個人情報（氏名・住所・連絡先など）の入力は行わないでください。**  
     - チャット内容は記録されます。内容の記録に同意された方のみ、チャットをご利用ください。
     """)
-    
     st.warning("このチャットを利用するには、以下の内容に同意いただく必要があります。")
-    
     if st.button("✅ 同意してチャットをはじめる"):
         st.session_state.agreed = True
-        st.rerun() 
+        st.rerun()
     st.stop()
 
-# ✅ Chatモード（同意済）
+# OpenAIクライアント
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# 🔧 Google Sheets 接続
-
+# Google Sheets ログ
 def get_gspread_client():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gsheets_service_account"], scope)
     return gspread.authorize(creds)
 
 def log_to_gsheet(question, answer):
-    client_gs = get_gspread_client()
-    sheet = client_gs.open_by_key(st.secrets["kiite-gikai"]["GOOGLE_GIKAI_LOG_SHEET_ID"]).worksheet("logs")
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    sheet.append_row([now, question, answer])
+    try:
+        client_gs = get_gspread_client()
+        sheet = client_gs.open_by_key(st.secrets["kiite-gikai"]["GOOGLE_GIKAI_LOG_SHEET_ID"]).worksheet("logs")
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        sheet.append_row([now, question, answer])
+    except Exception as e:
+        st.warning(f"⚠️ ログ記録に失敗しました: {e}")
 
-# Google Drive から .txt ファイルを取得
-def load_gikai_data():
-    creds = Credentials.from_service_account_info(
-        st.secrets["gsheets_service_account"],
-        scopes=["https://www.googleapis.com/auth/drive"]
-    )
-    service = build("drive", "v3", credentials=creds)
-
-    folder_id = st.secrets["kiite-gikai"]["GOOGLE_DRIVE_FOLDER_ID"]
-    files = list_txt_files_recursive(service, folder_id)
-
-    combined_text = ""
-    for f in files:
-        content = download_file_content(service, f["id"])
-        combined_text += f"\n\n【{f['name']}】\n{content}"
-    
-    return combined_text.strip()
-    
+# Google Drive から .txt を読む関数（今回の検索では未使用・将来用のまま残置）
 def list_txt_files_recursive(service, folder_id):
     query = f"'{folder_id}' in parents and trashed = false"
     files = []
     page_token = None
-
     while True:
         response = service.files().list(
             q=query,
@@ -216,18 +199,14 @@ def list_txt_files_recursive(service, folder_id):
             fields="nextPageToken, files(id, name, mimeType)",
             pageToken=page_token
         ).execute()
-        
         for file in response.get('files', []):
             if file['mimeType'] == 'application/vnd.google-apps.folder':
-                # サブフォルダを再帰探索
                 files.extend(list_txt_files_recursive(service, file['id']))
             elif file['name'].endswith(".txt"):
                 files.append(file)
-
         page_token = response.get('nextPageToken', None)
         if page_token is None:
             break
-
     return files
 
 def download_file_content(service, file_id):
@@ -236,20 +215,16 @@ def download_file_content(service, file_id):
     encoding = detected["encoding"] or "utf-8"
     return file_data.decode(encoding, errors="replace")
 
-
-# ✅ Enter送信処理（テキスト確定時）
 def on_enter():
     if st.session_state.input.strip():
         st.session_state.send_now = True
 
-# clarify機能（質問があいまいなときのフォロー）
 def clarify_query(user_query):
-    clarify_prompt = gikai_pair_prompt = load_prompt("gikai_clarify_prompt.txt")
+    clarify_prompt = load_prompt("gikai_clarify_prompt.txt", default_text="あなたはユーザーの曖昧な質問を明確化します。必要なら例示して書き換え案を出してください。JSONで返してください。")
     messages = [
         {"role": "system", "content": clarify_prompt},
         {"role": "user", "content": f"【質問】{user_query}"}
     ]
-    client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
     try:
         response = client.chat.completions.create(
             model=GPT_MODEL,
@@ -263,7 +238,8 @@ def clarify_query(user_query):
         st.error(f"Clarifyエラー: {e}")
         return {"ambiguous": False, "reason": "", "rewritten_query": ""}
 
-# 議事録データにアクセスして関連発言を出力
+# ========= ▼ 検索〜要約 本体 ===============================================
+
 def search_s3vector_and_respond(query):
     try:
         hits = _query_s3vectors(
@@ -284,11 +260,12 @@ def search_s3vector_and_respond(query):
     top_matches = []
     for h in top_hits:
         o = h.get("original") or {}
+        jsonl_base = _base_from_chunk_id(h.get("chunk_id") or "")
         top_matches.append({
-            # ★ 従来UI互換：スコア（類似度）やsource/chunk_idはそのまま
             "score": float(h.get("score", 0.0)),
             "source_file": h.get("source_file") or o.get("source_file") or "",
             "chunk_id": h.get("chunk_id"),
+            "jsonl_base": jsonl_base,              # ← 追加：S3キーはこれを使う
             "text": o.get("text", ""),
             "speaker": o.get("speaker"),
             "speaker_role": o.get("speaker_role"),
@@ -296,54 +273,77 @@ def search_s3vector_and_respond(query):
             "qa_role": o.get("qa_role"),
         })
 
-    # Q/Aペアを組み立て（議員=Q、答弁=A）
-    # 🔸 元の「Google Driveメタから復元」ロジックを置換：同ファイルのJSONL全文を再取得して pair_id で束ねる
-    # まず、同一 source_file ごとに全行を読んで pair_id -> [chunks] を作る
-    from collections import defaultdict
+    # 同一 jsonl_base ごとに全文をキャッシュ読み
     s3_client = boto3.client(
         "s3",
         aws_access_key_id=AWS_ACCESS_KEY_S,
         aws_secret_access_key=AWS_SECRET_KEY_S,
         region_name=AWS_REGION,
     )
-    def _load_all_for_source(source_file: str):
-        base = source_file.replace(".txt", "")
-        key = f"{OUTPUT_PREFIX}{base}.jsonl"
+
+    def _load_all_for_base(jsonl_base: str):
+        key = f"{OUTPUT_PREFIX}{jsonl_base}.jsonl"
         body = s3_client.get_object(Bucket=DATA_BUCKET_NAME, Key=key)["Body"].read().decode("utf-8")
         rows = []
         for line in body.splitlines():
-            if not line.strip(): continue
+            if not line.strip(): 
+                continue
             rows.append(json.loads(line))
         return rows
 
-    # cache 読みすぎ防止
-    cache_all_by_src = {}
+    cache_all_by_base = {}
     for m in top_matches:
-        src = m["source_file"]
-        if src and src not in cache_all_by_src:
+        jb = m["jsonl_base"]
+        if jb and jb not in cache_all_by_base:
             try:
-                cache_all_by_src[src] = _load_all_for_source(src)
+                cache_all_by_base[jb] = _load_all_for_base(jb)
             except Exception:
-                cache_all_by_src[src] = []
+                cache_all_by_base[jb] = []
 
-    # pair_id ごとにQ/A束ね
+    # N（議長など）で pair_id が無いヒットは、近傍のQ/Aペアに吸着（前→後の順で探索）
+    def _infer_pair_id_from_neighbors(rows, chunk_id):
+        idx = next((i for i, r in enumerate(rows) if r.get("chunk_id") == chunk_id), None)
+        if idx is None:
+            return None
+        for j in range(idx, -1, -1):
+            pid = rows[j].get("pair_id")
+            if pid is not None:
+                return pid
+        for j in range(idx + 1, len(rows)):
+            pid = rows[j].get("pair_id")
+            if pid is not None:
+                return pid
+        return None
+
+    for m in top_matches:
+        if m.get("pair_id") is None and m.get("jsonl_base"):
+            rows = cache_all_by_base.get(m["jsonl_base"], [])
+            pid  = _infer_pair_id_from_neighbors(rows, m["chunk_id"])
+            if pid is not None:
+                m["pair_id"] = pid
+
+    # pair_id ごとにQ/A束ね（単位は (jsonl_base, pair_id) ）
     qa_pairs = []
     seen_pairs = set()
     for m in top_matches:
-        src = m["source_file"]
+        jb  = m["jsonl_base"]
         pid = m.get("pair_id")
-        if src and pid is not None and (src, pid) not in seen_pairs:
-            seen_pairs.add((src, pid))
-            group = [x for x in cache_all_by_src.get(src, []) if x.get("pair_id") == pid]
+        if jb and pid is not None and (jb, pid) not in seen_pairs:
+            seen_pairs.add((jb, pid))
+            rows = cache_all_by_base.get(jb, [])
+            group = [x for x in rows if x.get("pair_id") == pid]
             q = [x for x in group if x.get("qa_role") == "Q"]
             a = [x for x in group if x.get("qa_role") == "A"]
-            qa_pairs.append({"pair_id": pid, "source_file": src, "Q": q, "A": a})
+            # 表示用の source_file は行の最初から補完
+            src = (m.get("source_file") or (group[0].get("source_file") if group else "")) or ""
+            qa_pairs.append({"pair_id": pid, "source_file": src, "jsonl_base": jb, "Q": q, "A": a})
 
-    # ペアごとの要約 → 全体要約（既存UIのまま）
+    # ペアごとの要約 → 全体要約
     try:
-        gikai_pair_prompt = load_prompt("gikai_pair_summary.txt")
-        summary_overall_prompt = load_prompt("gikai_summary_overall.txt")
-        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+        gikai_pair_prompt = load_prompt("gikai_pair_summary.txt",
+                                        "あなたは議会の議事録編集者です。質問と答弁を読み、論点・合意・宿題を箇条書きで短くまとめてください。")
+        summary_overall_prompt = load_prompt("gikai_summary_overall.txt",
+                                             "複数のQ/A要約を統合し、重複をまとめて全体像を100〜200字でまとめてください。")
 
         summary_per_pair = []
         for pair in qa_pairs:
@@ -359,19 +359,19 @@ def search_s3vector_and_respond(query):
                           {"role": "user", "content": qa_ctx}],
                 temperature=GPT_TEMPERATURE
             )
-            s = resp.choices[0].message.content.strip()
+            s = (resp.choices[0].message.content or "").strip()
             pair["summary"] = s
             summary_per_pair.append(s)
 
         if summary_per_pair:
-            ctx = "\n\n".join([f"{i+1}件目：{s}" for i,s in enumerate(summary_per_pair)])
+            ctx = "\n\n".join([f"{i+1}件目：{s}" for i, s in enumerate(summary_per_pair)])
             resp = client.chat.completions.create(
                 model=GPT_MODEL,
                 messages=[{"role": "system", "content": summary_overall_prompt},
                           {"role": "user", "content": ctx}],
                 temperature=GPT_TEMPERATURE
             )
-            summary_overall = resp.choices[0].message.content.strip()
+            summary_overall = (resp.choices[0].message.content or "").strip()
         else:
             summary_overall = "⚠️ 情報が見つかりませんでした。"
 
@@ -380,15 +380,11 @@ def search_s3vector_and_respond(query):
 
     return {"matches": top_matches, "summary": summary_overall, "qa_pairs": qa_pairs}
 
+# ========= ▼ UI =============================================================
 
-# 🔸 UI構成
 st.title("📜 きいてギカイやまぐち（β）")
 
-# --- キャラクターとサジェスト ---
-#st.image("character.gif", width=100)
-
-
-# --- チャット欄（送信ボタンなし・Enter送信） ---
+# 入力欄
 st.markdown("---\n\n#### 💬 質問してみよう")
 st.text_input(
     label="",
@@ -398,8 +394,8 @@ st.text_input(
     on_change=lambda: st.session_state.update(send_now=True)
 )
 
-# --- サジェスト ---
-if not st.session_state.get("clarify_active", False):  
+# サジェスト
+if not st.session_state.get("clarify_active", False):
     suggestions_master = [
         "公共施設の統廃合について気になります",
         "行政のDX化は進んでいますか",
@@ -415,29 +411,22 @@ if not st.session_state.get("clarify_active", False):
             st.session_state.query = s
             st.session_state.send_now = False
             st.session_state.is_generating = True
-            st.session_state.clarify_active = False  
+            st.session_state.clarify_active = False
             with st.spinner(f"⏳ 「{s}」に回答中... 少々お待ちください"):
                 results = search_s3vector_and_respond(s)
                 st.session_state.last_answer = results["summary"]
                 st.session_state.last_matches = results["matches"]
                 st.session_state.qa_pairs = results["qa_pairs"]
-                
-                # ログ記録
-                try:
-                    log_to_gsheet(s, results["summary"])
-                except Exception as e:
-                    st.warning(f"⚠️ ログ記録に失敗しました: {e}")
-                    
+                log_to_gsheet(s, results["summary"])
             st.session_state.is_generating = False
             st.rerun()
 
-# Clarifyプロンプトの確認
+# Clarify
 if st.session_state.input and not st.session_state.get("clarified", False):
     clarify_result = clarify_query(st.session_state.input)
-
     if clarify_result["ambiguous"] and clarify_result["rewritten_query"]:
         st.session_state.clarify_active = True
-        st.info(f"👇 より正確な検索のため「{clarify_result['reason']}」ことをお勧めします。例えば、以下の質問に置き換えるのはいかがでしょうか？\n\n**→ {clarify_result['rewritten_query']}**")
+        st.info(f"👇 より正確な検索のため「{clarify_result['reason']}」ことをお勧めします。\n\n**→ {clarify_result['rewritten_query']}**")
 
         col1, col2 = st.columns(2)
         if col1.button("🔁 置き換えて検索"):
@@ -452,12 +441,10 @@ if st.session_state.input and not st.session_state.get("clarified", False):
             st.session_state.send_now = True
             st.rerun()
         st.stop()
-    
     else:
-        # 🟨 あいまいでない or 明確な修正提案がない場合も、Clarifyは終了させる！
         st.session_state.clarified = True
 
-# --- 送信処理（Enter or サジェスト選択時） ---
+# Enter送信
 if st.session_state.input and st.session_state.send_now:
     st.session_state.send_now = False
     st.session_state.is_generating = True
@@ -466,113 +453,49 @@ if st.session_state.input and st.session_state.send_now:
         st.session_state.last_answer = results["summary"]
         st.session_state.last_matches = results["matches"]
         st.session_state.qa_pairs = results["qa_pairs"]
-        
-        # ログ記録
-        try:
-            log_to_gsheet(st.session_state.input, results["summary"])
-        except Exception as e:
-            st.warning(f"⚠️ ログ記録に失敗しました: {e}")
-            
+        log_to_gsheet(st.session_state.input, results["summary"])
     st.session_state.input_value = ""
     st.session_state.is_generating = False
 
-
-# --- 回答欄 ---
-
+# 回答表示
 if st.session_state.is_generating:
     st.info("⏳ 回答中... 少々お待ちください")
-elif st.session_state.last_answer and st.session_state.qa_pairs:
+elif st.session_state.last_answer and (st.session_state.qa_pairs or st.session_state.last_matches):
     st.divider()
-    st.caption("入力された質問に対して、AIが類似度が高いと判断した上位10件の発言をもとに回答します")
+    st.caption("入力された質問に対して、AIが類似度が高いと判断した発言をもとに回答します。")
     st.markdown("#### 💡議会質問のまとめ")
     st.success(st.session_state.last_answer)
 
-    st.markdown("---\n\n#### 📂 各質問の要約と原文")
-    for i, pair in enumerate(st.session_state.qa_pairs, start=1):
-        summary = pair.get("summary", "").strip()
-        if not summary:
-            continue
+    # Q/Aがあれば従来どおり表示
+    if st.session_state.qa_pairs:
+        st.markdown("---\n\n#### 📂 各質問の要約と原文")
+        for i, pair in enumerate(st.session_state.qa_pairs, start=1):
+            summary = (pair.get("summary") or "").strip()
+            if not summary:
+                continue
+            st.markdown(f"---\n\n##### {i}. {summary}")
+            for q in pair.get("Q", []):
+                with st.expander(f"🟢【質問】{q.get('speaker_role')} {q.get('speaker')}（{q.get('source_file', '').replace('.txt', '')}）"):
+                    st.markdown(q.get("text", ""))
+            for a in pair.get("A", []):
+                with st.expander(f"🔵【答弁】{a.get('speaker_role')} {a.get('speaker')}（{a.get('source_file', '').replace('.txt', '')}）"):
+                    st.markdown(a.get("text", ""))
 
-        st.markdown(f"---\n\n##### {i}. {summary}")
-        
-        for q in pair.get("Q", []):
-            with st.expander(f"🟢【質問】{q.get('speaker_role')} {q.get('speaker')}（{q.get('source_file', '').replace('.txt', '')}）"):
-                st.markdown(q.get("text", ""))
+    # QAが組めなかった場合でも、ヒット断片を表示（デバッグにも有効）
+    if not st.session_state.qa_pairs and st.session_state.last_matches:
+        st.markdown("---\n\n#### 🔎 ヒットした発言（ペア未形成）")
+        for m in st.session_state.last_matches:
+            score_pct = f"{m.get('score',0.0)*100:.1f}%"
+            with st.expander(f"{m.get('speaker_role','')} {m.get('speaker','')}｜{m.get('source_file','')}｜類似度 {score_pct}｜chunk_id={m.get('chunk_id')}"):
+                st.write(m.get("text",""))
 
-        for a in pair.get("A", []):
-            with st.expander(f"🔵【答弁】{a.get('speaker_role')} {a.get('speaker')}（{a.get('source_file', '').replace('.txt', '')}）"):
-                st.markdown(a.get("text", ""))
 elif st.session_state.send_now or st.session_state.input.strip() or st.session_state.query:
     st.warning("⚠️ 情報が見つかりませんでした。")
 
-# --- フッター 
-st.divider() 
-
+# フッター
+st.divider()
 st.caption("""
 ⚠️ 回答は生成AIによるものであり、正確性を保証するものではありません。  
 🙌 本プロジェクトは個人により運営されています。ご支援いただける方はぜひこちらから：  
 [💛 codocで支援する](https://codoc.jp/sites/p8cEFlTZQA/entries/MMZnODc1dw)
 """)
-
-# ---test
-with st.expander("🧪 接続診断", expanded=True):
-    st.write("Bucket (from secrets):", DATA_BUCKET_NAME)
-    st.write("Prefix (OUTPUT_PREFIX):", OUTPUT_PREFIX)
-
-    # 1) S3: Prefix 下に JSONL があるか？
-    try:
-        s3_dbg = boto3.client(
-            "s3",
-            aws_access_key_id=AWS_ACCESS_KEY_S,
-            aws_secret_access_key=AWS_SECRET_KEY_S,
-            region_name=AWS_REGION,
-        )
-        page = s3_dbg.list_objects_v2(
-            Bucket=DATA_BUCKET_NAME,   # ← バケット名だけ（ARNや / は入れない）
-            Prefix=OUTPUT_PREFIX,      # ← フォルダ的な先頭
-            MaxKeys=5
-        )
-        keys = [obj["Key"] for obj in page.get("Contents", [])]
-        st.write("Found keys under prefix (first 5):", keys)
-        if not keys:
-            st.warning("指定 Prefix にオブジェクトが見つかりません → Bucket/Prefix の不一致が濃厚")
-    except Exception as e:
-        st.error(f"S3 list_objects_v2 失敗: {e}")
-
-    # 2) S3 Vectors: とりあえず 1 件返るか？（空インデックス／別 ARN 切り分け）
-    try:
-        oai_dbg = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-        emb = oai_dbg.embeddings.create(model=EMBED_MODEL, input="テストクエリ")
-        s3v_dbg = boto3.client(
-            "s3vectors",
-            aws_access_key_id=AWS_ACCESS_KEY_S,
-            aws_secret_access_key=AWS_SECRET_KEY_S,
-            region_name=AWS_REGION,
-        )
-        res = s3v_dbg.query_vectors(
-            indexArn=S3_INDEX_ARN,
-            queryVector={"float32": [float(x) for x in emb.data[0].embedding]},
-            topK=1,
-            returnMetadata=True,
-            returnDistance=True,
-        )
-        vecs = res.get("vectors", []) or []
-        st.write("Vectors matches:", len(vecs))
-        if vecs:
-            md = vecs[0].get("metadata") or {}
-            sample_chunk_id = md.get("chunk_id") or vecs[0].get("key")
-            st.write("Sample chunk_id:", sample_chunk_id)
-
-            # 3) その chunk_id から実際に読みに行く S3 キーを組み立てて検証
-            import re
-            base = re.sub(r"_[0-9]{1,3}$", "", sample_chunk_id or "")
-            test_key = f"{OUTPUT_PREFIX}{base}.jsonl"
-            try:
-                s3_dbg.get_object(Bucket=DATA_BUCKET_NAME, Key=test_key)
-                st.success(f"S3 get_object OK: s3://{DATA_BUCKET_NAME}/{test_key}")
-            except Exception as e2:
-                st.error(f"S3 get_object 失敗: s3://{DATA_BUCKET_NAME}/{test_key} ({e2})")
-        else:
-            st.warning("S3Vectors から候補が返っていません → Index ARN の取り違え or 空インデックスの可能性")
-    except Exception as e:
-        st.error(f"S3Vectors / Embeddings 診断失敗: {e}")
