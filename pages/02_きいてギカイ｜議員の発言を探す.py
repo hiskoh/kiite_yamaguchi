@@ -478,11 +478,13 @@ if st.session_state.input and st.session_state.send_now:
 
 
 # --- 回答欄 ---
-st.markdown("#### 💡議会質問のまとめ")
 
 if st.session_state.is_generating:
     st.info("⏳ 回答中... 少々お待ちください")
-elif st.session_state.last_answer and st.session_state.qa_pairs:
+elif st.session_state.last_answer and st.session_
+    st.divider()
+    st.caption("入力された質問に対して、AIが類似度が高いと判断した上位10件の発言をもとに回答します")state.qa_pairs:
+    st.markdown("#### 💡議会質問のまとめ")
     st.success(st.session_state.last_answer)
 
     st.markdown("---\n\n#### 📂 各質問の要約と原文")
