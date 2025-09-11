@@ -513,3 +513,66 @@ st.caption("""
 🙌 本プロジェクトは個人により運営されています。ご支援いただける方はぜひこちらから：  
 [💛 codocで支援する](https://codoc.jp/sites/p8cEFlTZQA/entries/MMZnODc1dw)
 """)
+
+# ---test
+with st.expander("🧪 接続診断", expanded=True):
+    st.write("Bucket (from secrets):", DATA_BUCKET_NAME)
+    st.write("Prefix (OUTPUT_PREFIX):", OUTPUT_PREFIX)
+
+    # 1) S3: Prefix 下に JSONL があるか？
+    try:
+        s3_dbg = boto3.client(
+            "s3",
+            aws_access_key_id=AWS_ACCESS_KEY_S,
+            aws_secret_access_key=AWS_SECRET_KEY_S,
+            region_name=AWS_REGION,
+        )
+        page = s3_dbg.list_objects_v2(
+            Bucket=DATA_BUCKET_NAME,   # ← バケット名だけ（ARNや / は入れない）
+            Prefix=OUTPUT_PREFIX,      # ← フォルダ的な先頭
+            MaxKeys=5
+        )
+        keys = [obj["Key"] for obj in page.get("Contents", [])]
+        st.write("Found keys under prefix (first 5):", keys)
+        if not keys:
+            st.warning("指定 Prefix にオブジェクトが見つかりません → Bucket/Prefix の不一致が濃厚")
+    except Exception as e:
+        st.error(f"S3 list_objects_v2 失敗: {e}")
+
+    # 2) S3 Vectors: とりあえず 1 件返るか？（空インデックス／別 ARN 切り分け）
+    try:
+        oai_dbg = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+        emb = oai_dbg.embeddings.create(model=EMBED_MODEL, input="テストクエリ")
+        s3v_dbg = boto3.client(
+            "s3vectors",
+            aws_access_key_id=AWS_ACCESS_KEY_S,
+            aws_secret_access_key=AWS_SECRET_KEY_S,
+            region_name=AWS_REGION,
+        )
+        res = s3v_dbg.query_vectors(
+            indexArn=S3_INDEX_ARN,
+            queryVector={"float32": [float(x) for x in emb.data[0].embedding]},
+            topK=1,
+            returnMetadata=True,
+            returnDistance=True,
+        )
+        vecs = res.get("vectors", []) or []
+        st.write("Vectors matches:", len(vecs))
+        if vecs:
+            md = vecs[0].get("metadata") or {}
+            sample_chunk_id = md.get("chunk_id") or vecs[0].get("key")
+            st.write("Sample chunk_id:", sample_chunk_id)
+
+            # 3) その chunk_id から実際に読みに行く S3 キーを組み立てて検証
+            import re
+            base = re.sub(r"_[0-9]{1,3}$", "", sample_chunk_id or "")
+            test_key = f"{OUTPUT_PREFIX}{base}.jsonl"
+            try:
+                s3_dbg.get_object(Bucket=DATA_BUCKET_NAME, Key=test_key)
+                st.success(f"S3 get_object OK: s3://{DATA_BUCKET_NAME}/{test_key}")
+            except Exception as e2:
+                st.error(f"S3 get_object 失敗: s3://{DATA_BUCKET_NAME}/{test_key} ({e2})")
+        else:
+            st.warning("S3Vectors から候補が返っていません → Index ARN の取り違え or 空インデックスの可能性")
+    except Exception as e:
+        st.error(f"S3Vectors / Embeddings 診断失敗: {e}")
