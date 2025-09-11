@@ -306,7 +306,7 @@ def search_s3vector_and_respond(query, top_k):
         aws_secret_access_key=AWS_SECRET_KEY_S,
         region_name=AWS_REGION,
     )
-def _load_all_for_source(source_file: str):
+    def _load_all_for_source(source_file: str):
         base = source_file.replace(".txt", "")
         key = f"{OUTPUT_PREFIX}{base}.jsonl"
         body = s3_client.get_object(Bucket=DATA_BUCKET_NAME, Key=key)["Body"].read().decode("utf-8")
@@ -417,7 +417,7 @@ if not st.session_state.get("clarify_active", False):
             st.session_state.is_generating = True
             st.session_state.clarify_active = False  
             with st.spinner(f"⏳ 「{s}」に回答中... 少々お待ちください"):
-                results = search_faiss_and_respond(s, top_k)
+                results = search_s3vector_and_respond(s, top_k)
                 st.session_state.last_answer = results["summary"]
                 st.session_state.last_matches = results["matches"]
                 st.session_state.qa_pairs = results["qa_pairs"]
@@ -462,7 +462,7 @@ if st.session_state.input and st.session_state.send_now:
     st.session_state.send_now = False
     st.session_state.is_generating = True
     with st.spinner(f"⏳ 「{st.session_state.input}」に回答中... 少々お待ちください"):
-        results = search_faiss_and_respond(st.session_state.input, top_k)
+        results = search_s3vector_and_respond(st.session_state.input, top_k)
         st.session_state.last_answer = results["summary"]
         st.session_state.last_matches = results["matches"]
         st.session_state.qa_pairs = results["qa_pairs"]
