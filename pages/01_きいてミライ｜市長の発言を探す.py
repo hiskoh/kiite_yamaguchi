@@ -356,15 +356,12 @@ if st.session_state.input and st.session_state.send_now:
     st.session_state.input_value = ""
     st.session_state.is_generating = False
 
-
-if st.session_state.last_answer:
-    st.divider()
-    st.caption("入力された質問に対して、AIが類似度が高いと判断した上位10件の発言をもとに回答します")
-
-st.markdown("#### 💡 市長発言のまとめ")
 if st.session_state.is_generating:
     st.info("⏳ 回答中... 少々お待ちください")
 elif st.session_state.last_answer:
+    st.divider()
+    st.caption("入力された質問に対して、AIが類似度が高いと判断した上位10件の発言をもとに回答します")
+    st.markdown("#### 💡 市長発言のまとめ")
     st.success(st.session_state.last_answer)  # ← サマリ本文の出力位置
     
     st.subheader("関連発言の詳細")
