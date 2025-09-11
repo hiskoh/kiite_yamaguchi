@@ -352,6 +352,63 @@ elif st.session_state.last_answer:
             st.markdown(m["text"])
             st.markdown(source, unsafe_allow_html=True)
 
+
+
+    # （前略）last_matches を作った後の表示部分を差し替え
+
+    st.subheader("関連発言の詳細")
+
+    # 1) まず分類
+    press_items = []    # 定例会見
+    council_items = []  # 議会発言
+
+    for m in st.session_state.last_matches:
+        source_file_raw = m.get("source_file", "")
+        source_file = source_file_raw.replace(".txt", "")
+        date = m.get("date")
+
+        # topic は「source_file に会見が入っているか」で上書き/付与
+        # 既存の topic を残したい場合は別キー（e.g. display_topic）にしてください
+        topic = "定例会見" if "会見" in source_file else "議会発言"
+
+        # 後段の描画で使いやすいよう整形して append
+        enriched = {
+            **m,
+            "topic": topic,
+            "source_file": source_file,
+            "date": date,
+        }
+        (press_items if topic == "定例会見" else council_items).append(enriched)
+
+    # 2) タブで分けて表示
+    tabs = st.tabs([f"定例会見（{len(press_items)}）", f"議会発言（{len(council_items)}）"])
+
+    def render_items(items):
+        if not items:
+            st.info("該当なし")
+            return
+        for m in items:
+            # ここは既存の「カード風表示」やリンク生成など、
+            # いま使っている描画ロジックをそのまま流用してください
+            title = m.get("title") or m.get("snippet") or m.get("source_file")
+            date = m.get("date")
+            st.markdown(f"**{title}**")
+            if date:
+                st.caption(str(date))
+            # 例: 元ファイルやタイムスタンプへのリンクがあるならここで表示
+            # url = build_url_from_meta(m)  # 既存関数があれば
+            # if url:
+            #     st.markdown(f"[元発言を見る]({url})")
+            st.divider()
+
+    with tabs[0]:
+        render_items(press_items)
+
+    with tabs[1]:
+        render_items(council_items)
+
+
+
 st.divider()
 st.caption("""
 ⚠️ 回答は生成AIによるものであり、正確性を保証するものではありません。  
