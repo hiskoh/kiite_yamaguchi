@@ -264,7 +264,7 @@ def clarify_query(user_query):
         return {"ambiguous": False, "reason": "", "rewritten_query": ""}
 
 # 議事録データにアクセスして関連発言を出力
-def search_s3vector_and_respond(query, top_k):
+def search_s3vector_and_respond(query):
     try:
         hits = _query_s3vectors(
             query_text=query,
@@ -417,7 +417,7 @@ if not st.session_state.get("clarify_active", False):
             st.session_state.is_generating = True
             st.session_state.clarify_active = False  
             with st.spinner(f"⏳ 「{s}」に回答中... 少々お待ちください"):
-                results = search_s3vector_and_respond(s, top_k)
+                results = search_s3vector_and_respond(s)
                 st.session_state.last_answer = results["summary"]
                 st.session_state.last_matches = results["matches"]
                 st.session_state.qa_pairs = results["qa_pairs"]
@@ -462,7 +462,7 @@ if st.session_state.input and st.session_state.send_now:
     st.session_state.send_now = False
     st.session_state.is_generating = True
     with st.spinner(f"⏳ 「{st.session_state.input}」に回答中... 少々お待ちください"):
-        results = search_s3vector_and_respond(st.session_state.input, top_k)
+        results = search_s3vector_and_respond(st.session_state.input)
         st.session_state.last_answer = results["summary"]
         st.session_state.last_matches = results["matches"]
         st.session_state.qa_pairs = results["qa_pairs"]
