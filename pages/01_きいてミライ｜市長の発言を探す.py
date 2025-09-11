@@ -349,19 +349,18 @@ elif st.session_state.last_answer:
         source_file_raw = m.get("source_file", "")
         source_file = source_file_raw.replace(".txt", "")
         date = m.get("date")
-
-        # topic は「source_file に会見が入っているか」で上書き/付与
-        # 既存の topic を残したい場合は別キー（e.g. display_topic）にしてください
-        topic = "定例会見" if "会見" in source_file else "議会発言"
+        topic = m.get("topic", "未分類")
+        type = "定例会見" if "会見" in source_file else "議会発言"
 
         # 後段の描画で使いやすいよう整形して append
         enriched = {
             **m,
+            "type": type,
             "topic": topic,
             "source_file": source_file,
             "date": date,
         }
-        (press_items if topic == "定例会見" else council_items).append(enriched)
+        (press_items if type == "定例会見" else council_items).append(enriched)
 
     # 2) タブで分けて表示
     tabs = st.tabs([f"定例会見（{len(press_items)}）", f"議会発言（{len(council_items)}）"])
@@ -383,7 +382,7 @@ elif st.session_state.last_answer:
             # 出典情報（従来のまま）
             source = f"""<span style="font-size:0.9em; color:gray;">{source_file}</span>"""
 
-            # タブ側で topic を確定済みなので、expander 見出しは内容に集中
+            # タブ側で type を確定済みなので、expander 見出しは内容に集中
             with st.expander(f"{topic}" if date else header, expanded=False):
                 st.markdown(m.get("text", ""))
                 st.markdown(source, unsafe_allow_html=True)
