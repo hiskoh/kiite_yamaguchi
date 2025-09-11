@@ -387,19 +387,23 @@ elif st.session_state.last_answer:
         if not items:
             st.info("該当なし")
             return
+
+        # （任意）日付の降順に並べたい場合:
+        # items = sorted(items, key=lambda x: str(x.get("date", "")), reverse=True)
+
         for m in items:
-            # ここは既存の「カード風表示」やリンク生成など、
-            # いま使っている描画ロジックをそのまま流用してください
-            title = m.get("title") or m.get("snippet") or m.get("source_file")
+            source_file = m.get("source_file", "").replace(".txt", "")
             date = m.get("date")
-            st.markdown(f"**{title}**")
-            if date:
-                st.caption(str(date))
-            # 例: 元ファイルやタイムスタンプへのリンクがあるならここで表示
-            # url = build_url_from_meta(m)  # 既存関数があれば
-            # if url:
-            #     st.markdown(f"[元発言を見る]({url})")
-            st.divider()
+            # expander の見出し（タイトル優先→スニペット→source_file）
+            header = m.get("title") or m.get("snippet") or source_file or "関連発言"
+
+            # 出典情報（従来のまま）
+            source = f"""<span style="font-size:0.9em; color:gray;">{source_file}</span>"""
+
+            # タブ側で topic を確定済みなので、expander 見出しは内容に集中
+            with st.expander(f"{header}｜{date}" if date else header, expanded=False):
+                st.markdown(m.get("text", ""))
+                st.markdown(source, unsafe_allow_html=True)
 
     with tabs[0]:
         render_items(press_items)
