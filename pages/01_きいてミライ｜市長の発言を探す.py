@@ -360,11 +360,19 @@ st.markdown("#### 💡 市長発言のまとめ")
 if st.session_state.is_generating:
     st.info("⏳ 回答中... 少々お待ちください")
 elif st.session_state.last_answer:
-    st.markdown("入力された質問に対して、AIが類似度が高いと判断した発言のうち、上位10件の要約です")
+    st.markdown("""
+    <p style="color:gray; margin-left:1em; font-size:0.9em;">
+    入力された質問に対して、AIが類似度が高いと判断した発言のうち、上位10件の要約です
+    </p>
+    """)
     st.success(st.session_state.last_answer)
 
     st.subheader("関連発言の詳細")
-    st.markdown("入力された質問に対して、AIが類似度が高いと判断した発言のうち、上位10件を表示しています")
+    st.markdown("""
+    <p style="color:gray; margin-left:1em; font-size:0.9em;">
+    入力された質問に対して、AIが類似度が高いと判断した発言のうち、上位10件を表示しています
+    </p>
+    """)
                 
     # 1) まず分類
     press_items = []    # 定例会見
@@ -402,6 +410,7 @@ elif st.session_state.last_answer:
             unsafe_allow_html=True,
         )
     with tabs[1]:
+        render_items(council_items)
         # 一次ソースを明示
         st.markdown(
             """
@@ -410,7 +419,6 @@ elif st.session_state.last_answer:
             """,
             unsafe_allow_html=True,
         )
-        render_items(council_items)
 
 
 st.divider()
