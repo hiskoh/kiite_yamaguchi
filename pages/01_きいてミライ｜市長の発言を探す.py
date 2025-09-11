@@ -360,10 +360,12 @@ st.markdown("#### 💡 市長発言のまとめ")
 if st.session_state.is_generating:
     st.info("⏳ 回答中... 少々お待ちください")
 elif st.session_state.last_answer:
+    st.markdown("入力された質問に対して、AIが類似度が高いと判断した発言のうち、上位10件の要約です")
     st.success(st.session_state.last_answer)
 
     st.subheader("関連発言の詳細")
-
+    st.markdown("入力された質問に対して、AIが類似度が高いと判断した発言のうち、上位10件を表示しています")
+                
     # 1) まず分類
     press_items = []    # 定例会見
     council_items = []  # 議会発言
