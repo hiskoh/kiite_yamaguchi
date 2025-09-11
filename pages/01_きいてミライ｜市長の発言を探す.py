@@ -245,6 +245,29 @@ def search_s3vector_and_respond(query):
 
     return {"matches": top_matches, "summary": summary}
 
+def render_items(items):
+    if not items:
+        st.info("該当なし")
+        return
+
+    # （任意）日付の降順に並べたい場合:
+    # items = sorted(items, key=lambda x: str(x.get("date", "")), reverse=True)
+
+    for m in items:
+        source_file = m.get("source_file", "").replace(".txt", "")
+        date = m.get("date")
+        topic = m.get("topic", "未分類")
+        # expander の見出し（タイトル優先→スニペット→source_file）
+        header = m.get("title") or m.get("snippet") or source_file or "関連発言"
+
+        # 出典情報（従来のまま）
+        source = f"""<span style="font-size:0.9em; color:gray;">{source_file}</span>"""
+
+        # タブ側で type を確定済みなので、expander 見出しは内容に集中
+        with st.expander(f"{topic}" if date else header, expanded=False):
+            st.markdown(m.get("text", ""))
+            st.markdown(source, unsafe_allow_html=True)
+
 st.title("🏛️ きいてミライ（β）")
 
 # --- チャット欄（送信ボタンなし・Enter送信） ---
@@ -365,35 +388,27 @@ elif st.session_state.last_answer:
     # 2) タブで分けて表示
     tabs = st.tabs([f"定例会見（{len(press_items)}）", f"議会発言（{len(council_items)}）"])
 
-    def render_items(items):
-        if not items:
-            st.info("該当なし")
-            return
-
-        # （任意）日付の降順に並べたい場合:
-        # items = sorted(items, key=lambda x: str(x.get("date", "")), reverse=True)
-
-        for m in items:
-            source_file = m.get("source_file", "").replace(".txt", "")
-            date = m.get("date")
-            topic = m.get("topic", "未分類")
-            # expander の見出し（タイトル優先→スニペット→source_file）
-            header = m.get("title") or m.get("snippet") or source_file or "関連発言"
-
-            # 出典情報（従来のまま）
-            source = f"""<span style="font-size:0.9em; color:gray;">{source_file}</span>"""
-
-            # タブ側で type を確定済みなので、expander 見出しは内容に集中
-            with st.expander(f"{topic}" if date else header, expanded=False):
-                st.markdown(m.get("text", ""))
-                st.markdown(source, unsafe_allow_html=True)
-
     with tabs[0]:
+        # 一次ソースを明示
+        st.markdown(
+            """
+            🔗 **原文はこちら**  
+            - [山口市 市長の部屋 記者会見（市公式HP）](https://www.city.yamaguchi.lg.jp/site/shicho/list68.html)  
+            - [市長定例記者会見（市公式YouTube）](youtube.com/playlist?list=PLSBXr_PDKAbMOBbQdeQslWsrmSr-LyOdl)  
+            """,
+            unsafe_allow_html=True,
+        )
         render_items(press_items)
-
     with tabs[1]:
+        # 一次ソースを明示
+        st.markdown(
+            """
+            🔗 **原文はこちら**  
+            - [山口市議会 議事録（公式HP）](https://www.city.yamaguchi.yamaguchi.dbsr.jp/index.php/)  
+            """,
+            unsafe_allow_html=True,
+        )
         render_items(council_items)
-
 
 
 st.divider()
