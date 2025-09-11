@@ -339,23 +339,6 @@ if st.session_state.is_generating:
 elif st.session_state.last_answer:
     st.success(st.session_state.last_answer)
 
-    st.markdown("---\n\n#### 📂 関連発言の詳細")
-    for m in st.session_state.last_matches:
-        topic = m.get("topic", "未分類")
-        source_file = m.get("source_file", "").replace('.txt','')
-        date = m.get("date")
-        
-        # 出典情報
-        source = f"""  <span style="font-size:0.9em; color:gray;">{source_file}</span> """
-        
-        with st.expander(topic, expanded=False):
-            st.markdown(m["text"])
-            st.markdown(source, unsafe_allow_html=True)
-
-
-
-    # （前略）last_matches を作った後の表示部分を差し替え
-
     st.subheader("関連発言の詳細")
 
     # 1) まず分類
@@ -401,7 +384,7 @@ elif st.session_state.last_answer:
             source = f"""<span style="font-size:0.9em; color:gray;">{source_file}</span>"""
 
             # タブ側で topic を確定済みなので、expander 見出しは内容に集中
-            with st.expander(f"{header}｜{date}" if date else header, expanded=False):
+            with st.expander(f"{topic}" if date else header, expanded=False):
                 st.markdown(m.get("text", ""))
                 st.markdown(source, unsafe_allow_html=True)
 
