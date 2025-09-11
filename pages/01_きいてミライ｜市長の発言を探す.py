@@ -361,6 +361,7 @@ if st.session_state.is_generating:
     st.info("⏳ 回答中... 少々お待ちください")
 elif st.session_state.last_answer:
     st.caption("入力された質問に対して、AIが類似度が高いと判断した発言のうち、上位10件の要約です")
+    st.markdown(st.session_state.last_answer)  # ← サマリ本文の出力位置
 
     st.subheader("関連発言の詳細")
     st.caption("入力された質問に対して、AIが類似度が高いと判断した発言のうち、上位10件を表示しています")
@@ -402,10 +403,10 @@ elif st.session_state.last_answer:
                 margin-top:0.8em;
                 margin-bottom:0.8em;
                 ">
-                🔗 <b>公式情報はこちらからご覧いただけます</b><br>
+                🔗 公式情報はこちらからご覧いただけます<br>
                 ・ <a href="https://www.city.yamaguchi.lg.jp/site/shicho/list68.html" target="_blank">
                     山口市 市長の部屋 記者会見（市公式HP）
-                  </a> 
+                  </a> <br>
                 ・ <a href="https://www.youtube.com/playlist?list=PLSBXr_PDKAbMOBbQdeQslWsrmSr-LyOdl" target="_blank">
                     市長定例記者会見（市公式YouTube）
                   </a>
@@ -428,7 +429,7 @@ elif st.session_state.last_answer:
                 margin-top:0.8em;
                 margin-bottom:0.8em;
                 ">
-                🔗 <b>公式情報はこちらからご覧いただけます</b><br>
+                🔗 公式情報はこちらからご覧いただけます<br>
                 ・ <a href="https://www.city.yamaguchi.yamaguchi.dbsr.jp/index.php/" target="_blank">
                     山口市議会 議事録（公式HP）
                   </a>
