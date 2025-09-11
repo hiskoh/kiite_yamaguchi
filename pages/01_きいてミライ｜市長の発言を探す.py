@@ -389,22 +389,22 @@ elif st.session_state.last_answer:
     tabs = st.tabs([f"定例会見（{len(press_items)}）", f"議会発言（{len(council_items)}）"])
 
     with tabs[0]:
+        render_items(press_items)
         # 一次ソースを明示
         st.markdown(
             """
-            🔗 **原文はこちら**  
-            - [山口市 市長の部屋 記者会見（市公式HP）](https://www.city.yamaguchi.lg.jp/site/shicho/list68.html)  
-            - [市長定例記者会見（市公式YouTube）](youtube.com/playlist?list=PLSBXr_PDKAbMOBbQdeQslWsrmSr-LyOdl)  
+            🔗 **公式情報はこちらからご覧いただけます**  
+            ・ [山口市 市長の部屋 記者会見（市公式HP）](https://www.city.yamaguchi.lg.jp/site/shicho/list68.html)  
+            ・ [市長定例記者会見（市公式YouTube）](youtube.com/playlist?list=PLSBXr_PDKAbMOBbQdeQslWsrmSr-LyOdl)  
             """,
             unsafe_allow_html=True,
         )
-        render_items(press_items)
     with tabs[1]:
         # 一次ソースを明示
         st.markdown(
             """
-            🔗 **原文はこちら**  
-            - [山口市議会 議事録（公式HP）](https://www.city.yamaguchi.yamaguchi.dbsr.jp/index.php/)  
+            🔗 **公式情報はこちらからご覧いただけます**  
+            ・ [山口市議会 議事録（公式HP）](https://www.city.yamaguchi.yamaguchi.dbsr.jp/index.php/)  
             """,
             unsafe_allow_html=True,
         )
