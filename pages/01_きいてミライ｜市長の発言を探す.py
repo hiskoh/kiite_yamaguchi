@@ -361,7 +361,7 @@ if st.session_state.is_generating:
     st.info("⏳ 回答中... 少々お待ちください")
 elif st.session_state.last_answer:
     st.caption("入力された質問に対して、AIが類似度が高いと判断した発言のうち、上位10件の要約です")
-    st.markdown(st.session_state.last_answer)  # ← サマリ本文の出力位置
+    st.success(st.session_state.last_answer)  # ← サマリ本文の出力位置
 
     st.subheader("関連発言の詳細")
     st.caption("入力された質問に対して、AIが類似度が高いと判断した発言のうち、上位10件を表示しています")
