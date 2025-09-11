@@ -31,7 +31,7 @@ AWS_REGION     = "us-west-2"
 OUTPUT_PREFIX  = "council_chunk_jsonl/"  
 AWS_ACCESS_KEY_S = st.secrets["AWS-KEY"]["AWS_ACCESS_KEY"]
 AWS_SECRET_KEY_S = st.secrets["AWS-KEY"]["AWS_SECRET_KEY"]
-DATA_BUCKET_NAME = st.secrets["AWS-KEY"]["DATA_BUCKET_ARN"]
+DATA_BUCKET_NAME = st.secrets["AWS-KEY"]["DATA_BUCKET_NAME"]
 S3_INDEX_ARN   = st.secrets["AWS-KEY"]["VECTOR_INDEX_ARN_COUNCIL"]
 
 # ========= ▼ ここからS3 Vectorsでの検索を実装 ===============================
