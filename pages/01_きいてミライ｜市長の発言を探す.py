@@ -356,8 +356,10 @@ if st.session_state.input and st.session_state.send_now:
     st.session_state.input_value = ""
     st.session_state.is_generating = False
 
-st.divider()
-st.caption("入力された質問に対して、AIが類似度が高いと判断した上位10件の発言をもとに回答します")
+
+if st.session_state.last_answer:
+    st.divider()
+    st.caption("入力された質問に対して、AIが類似度が高いと判断した上位10件の発言をもとに回答します")
 
 st.markdown("#### 💡 市長発言のまとめ")
 if st.session_state.is_generating:
