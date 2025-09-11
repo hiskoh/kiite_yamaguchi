@@ -28,10 +28,9 @@ AWS_REGION          = "us-west-2"
 OUTPUT_PREFIX       = "mayor_chunk_jsonl/" 
 SCORE_THRESHOLD     = 0.0
 AWS_ACCESS_KEY_S    = st.secrets["AWS-KEY"]["AWS_ACCESS_KEY"]
-AWS_SECRET_KEY_S    = st.secrets["AWS-KEY"]["AWS_SECRET_KEY"]
-S3_INDEX_ARN        = st.secrets["AWS-KEY"]["VECTOR_INDEX_ARN"] #st.secrets["AWS-KEY"]["VECTOR_BUCKET_ARN"]       
+AWS_SECRET_KEY_S    = st.secrets["AWS-KEY"]["AWS_SECRET_KEY"]     
 DATA_BUCKET_NAME    = st.secrets["AWS-KEY"]["DATA_BUCKET_NAME"]        
-
+S3_INDEX_ARN_MAYOR        = st.secrets["AWS-KEY"]["VECTOR_INDEX_ARN_MAYOR"]
 # ====== ▲ 初期値設定 ========================================================
 
 for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_generating", "input", "input_value", "clarified", "clarify_active", "suggestions_sampled"]:
@@ -154,7 +153,7 @@ def _query_s3vectors(query_text: str, top_k_: int, score_threshold: float):
 
     # ✅ まずは多めに候補を取ってくる（TOPK_CANDIDATES）
     res = s3v_client.query_vectors(
-        indexArn=S3_INDEX_ARN,
+        indexArn=S3_INDEX_ARN_MAYOR,
         queryVector={"float32": qvec},
         topK=max(TOPK_CANDIDATES, top_k_),   # ← ここを overfetch
         returnMetadata=True,
