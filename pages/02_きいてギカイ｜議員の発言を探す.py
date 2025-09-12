@@ -1,39 +1,65 @@
 # -*- coding: utf-8 -*-
+# シンプル版：GoogleDrive+FAISS を S3 Vectors + .jsonl に移植
+# - インデックスのメタデータは {source_id, chank_id(or chunk_id), pair_id} を想定
+# - S3上の議事録は .jsonl（圧縮なし）のみ
+# - 以前と同じUI/出力構造（qa_pairs優先表示、なければヒット断片）
+
 import streamlit as st
 import chardet
 from openai import OpenAI
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from googleapiclient.discovery import build
-from google.oauth2.service_account import Credentials
 from datetime import datetime
-import random, json, io, re, boto3
+import random, json, re, boto3
 import numpy as np
-from googleapiclient.http import MediaIoBaseDownload
 
 # ========================= ページ設定 =========================
 st.set_page_config(page_title="きいてギカイやまぐち（β）", layout="wide", page_icon="📜")
 
 # ========================= 初期値設定 =========================
-# 検索パラメータ
-TOP_N_RETURN     = 10    # UIに返す上位件数
-TOPK_CANDIDATES  = 40    # S3Vectorsから仮取得する候補の数（TOP_N_RETURN より多めに）
-SIM_THRESHOLD    = 0 #.10  # 類似度しきい値（0.0〜1.0, 高いほど類似）
-
 # ChatGPT
 GPT_MODEL        = "gpt-4.1-mini"
 GPT_TEMPERATURE  = 0.1
-EMBED_MODEL      = "text-embedding-3-small"
+EMBED_MODEL      = "text-embedding-3-small"   # <- 必要に応じて変更
+
+# 検索パラメータ
+TOPK_CANDIDATES  = 40    # S3Vectorsから仮取得する候補の数（TOP_K より多めに）
+SIM_THRESHOLD    = 0.00  # まずは0.0で挙動確認→落ち着いたら 0.05〜0.15 へ
+# 取得するチャンク数（≒類似度の高い議会答弁を取得する際、何件まで取得するかを制御）
+TOP_K = 10
+
 
 # AWS
 AWS_REGION       = "us-west-2"
-OUTPUT_PREFIX    = "council_chunk_jsonl/"  # S3上のjsonl保存プレフィックス（末尾スラッシュ必須）
+DATA_BUCKET_NAME = st.secrets["AWS-KEY"]["DATA_BUCKET_NAME"]
+OUTPUT_PREFIX    = "council_chunk_jsonl/"   # S3上のjsonl保存プレフィックス（末尾/）
 AWS_ACCESS_KEY_S = st.secrets["AWS-KEY"]["AWS_ACCESS_KEY"]
 AWS_SECRET_KEY_S = st.secrets["AWS-KEY"]["AWS_SECRET_KEY"]
-DATA_BUCKET_NAME = st.secrets["AWS-KEY"]["DATA_BUCKET_NAME"]
 S3_INDEX_ARN     = st.secrets["AWS-KEY"]["VECTOR_INDEX_ARN_COUNCIL"]
 
-# ========================= ヘルパー =========================
+# ========================= セッション初期化 =========================
+for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_generating",
+            "input", "input_value", "suggestions_sampled", "qa_pairs", "clarified", "clarify_active"]:
+    if key not in st.session_state:
+        if key in ["query", "last_answer", "input", "input_value"]:
+            st.session_state[key] = ""
+        elif key == "suggestions_sampled":
+            st.session_state[key] = []
+        elif key in ["last_matches", "qa_pairs"]:
+            st.session_state[key] = []
+        elif key == "clarify_active":
+            st.session_state[key] = False
+        else:
+            st.session_state[key] = False
+
+# ========================= ユーティリティ =========================
+def load_prompt(filename, default_text=""):
+    try:
+        with open("prompts/" + filename, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception:
+        return default_text
+
 def _to_similarity(distance: float) -> float:
     """S3 Vectorsのdistance(=cosine距離) -> 類似度(1 - distance)"""
     try:
@@ -43,7 +69,6 @@ def _to_similarity(distance: float) -> float:
     return max(0.0, min(1.0, 1.0 - d))
 
 def _to_int_or_none(x):
-    """'84' / 84 / 84.0 / None を安全にintへ"""
     if x is None:
         return None
     try:
@@ -67,37 +92,34 @@ def _meta_get(md: dict, primary: str, alts: list[str]):
             return v
     return None
 
-# --- JSONLキー推定（chunk_id と source_* の両にらみ；.jsonlのみを対象）
-def _guess_jsonl_keys(jsonl_base: str | None, source_hint: str | None, output_prefix: str) -> list[str]:
+def _guess_jsonl_key_from_chunk_or_source(jsonl_base: str | None, source_id: str | None) -> list[str]:
     """
-    - 通常は {output_prefix}{jsonl_base}.jsonl を第一候補に
-    - source_hint（source_file/source_id等）があれば stem を候補に追加
-    - 全角→半角の軽い正規化も試す
+    - 通常は {OUTPUT_PREFIX}{jsonl_base}.jsonl を第一候補に
+    - source_id（ファイル名相当のヒント）があれば stem.jsonl を候補に追加
+    - 全半角ゆれの軽い正規化も試す
     """
     cands = []
     if jsonl_base:
-        cands.append(f"{output_prefix}{jsonl_base}.jsonl")
-    if source_hint:
-        stem = re.sub(r"\.txt$", "", source_hint or "")
-        cands.append(f"{output_prefix}{stem}.jsonl")
+        cands.append(f"{OUTPUT_PREFIX}{jsonl_base}.jsonl")
+    if source_id:
+        stem = re.sub(r"\.txt$", "", source_id or "")
+        cands.append(f"{OUTPUT_PREFIX}{stem}.jsonl")
 
-    # 全半角ゆれの軽い正規化
     def _norm(s: str) -> str:
         return s.replace("（", "(").replace("）", ")").replace("　", " ").strip()
 
     extras = []
     for k in list(cands):
-        base = k.replace(output_prefix, "").replace(".jsonl", "")
+        base = k.replace(OUTPUT_PREFIX, "").replace(".jsonl", "")
         nb = _norm(base)
         if nb != base:
-            extras.append(f"{output_prefix}{nb}.jsonl")
+            extras.append(f"{OUTPUT_PREFIX}{nb}.jsonl")
 
     # 重複除去
     return list(dict.fromkeys(cands + extras))
 
-# ========================= S3 / OpenAI クライアント =========================
-# OpenAI（埋め込みでも使用）
-_oai_for_embed = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+# ========================= クライアント =========================
+client_oai = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 def _boto_s3():
     return boto3.client(
@@ -115,11 +137,10 @@ def _boto_s3vectors():
         region_name=AWS_REGION,
     )
 
-# ========================= JSONLアクセス系 =========================
+# ========================= JSONLアクセス（.jsonlのみ） =========================
 def _fetch_original_chunk_for_search(s3_client, chunk_id: str) -> dict | None:
     """
-    chunk_id から該当 JSONL を決定し、該当行（speaker/speaker_role/pair_id/qa_role/text等）を返す。
-    ※ .jsonl のみ（.jsonl.gz は使わない）
+    chunk_id から該当 JSONL を決定し、該当行を返す（speaker/role/pair_id/qa_role/text等）。
     """
     base = _base_from_chunk_id(chunk_id)
     key  = f"{OUTPUT_PREFIX}{base}.jsonl"
@@ -135,6 +156,7 @@ def _fetch_original_chunk_for_search(s3_client, chunk_id: str) -> dict | None:
             obj = json.loads(line)
         except Exception:
             continue
+        # chank_id（typo）も拾う
         if obj.get("chunk_id") == chunk_id or obj.get("chank_id") == chunk_id:
             return obj
     return None
@@ -142,7 +164,7 @@ def _fetch_original_chunk_for_search(s3_client, chunk_id: str) -> dict | None:
 def _s3select_pair_records(s3_client, jsonl_key: str, pair_id: int):
     """
     JSON Lines の議事録ファイル(jsonl_key)から、指定 pair_id の行のみを抽出。
-    Q→A→N の順でソートして返す（.jsonlのみを対象）
+    Q→A→N の順でソートして返す（.jsonlのみ）
     """
     expr = f"SELECT * FROM S3Object s WHERE s.pair_id = {int(pair_id)}"
     resp = s3_client.select_object_content(
@@ -170,49 +192,28 @@ def _s3select_pair_records(s3_client, jsonl_key: str, pair_id: int):
     records.sort(key=lambda r: order.get(r.get("qa_role"), 9))
     return records
 
-# ========================= ベクター検索 =========================
-def _query_s3vectors(query_text: str, top_k_: int, score_threshold: float):
+# ========================= ベクター検索（S3 Vectors） =========================
+def _query_s3vectors(query_text: str, top_k: int, score_threshold: float):
     """
-    S3 Vectors を検索し、[{score, distance, key, source_file, chunk_id, pair_id, original}] を返す。
+    S3 Vectors を検索し、[{score, distance, key, source_id, chunk_id, pair_id, original}] を返す。
     original には JSONL の当該オブジェクト（speaker/qa_role等）が入る。
-    ※ メタキーは source_id/chank_id/pair_id も受け付ける（S3Vectors登録時の揺れ吸収）
+    ※ メタキーは source_id / chank_id / pair_id を想定。chunk_idにもフォールバック。
     """
-    # クエリ埋め込み
-    emb = _oai_for_embed.embeddings.create(model=EMBED_MODEL, input=query_text)
+    # クエリ埋め込み（インデックス作成時のモデルに合わせること）
+    emb = client_oai.embeddings.create(model=EMBED_MODEL, input=query_text)
     qvec = [float(x) for x in emb.data[0].embedding]
 
-    # Boto3 clients
     s3_client = _boto_s3()
     s3v_client = _boto_s3vectors()
 
-    # 候補を多めに取得 → しきい値でフィルタ
     res = s3v_client.query_vectors(
         indexArn=S3_INDEX_ARN,
         queryVector={"float32": qvec},
-        topK=max(TOPK_CANDIDATES, top_k_),
+        topK=max(TOPK_CANDIDATES, top_k),
         returnMetadata=True,
         returnDistance=True,
     )
     matches = res.get("vectors", []) or []
-
-    # --- デバッグ出力（軽量） ---
-    try:
-        _first3 = matches[:3]
-        st.write({
-            "DEBUG/query_vectors": {
-                "vectors_len": len(matches),
-                "samples": [
-                    {
-                        "distance": v.get("distance"),
-                        "score(1-d)": (1.0 - float(v.get("distance", 0.0))) if v.get("distance") is not None else None,
-                        "key": v.get("key") or v.get("id"),
-                        "meta_keys": list((v.get("metadata") or {}).keys())
-                    } for v in _first3
-                ]
-            }
-        })
-    except Exception:
-        pass
 
     out = []
     for m in matches:
@@ -222,12 +223,10 @@ def _query_s3vectors(query_text: str, top_k_: int, score_threshold: float):
         if score < score_threshold:
             continue
 
-        md = m.get("metadata") or {}
-
-        # メタのキー揺れを吸収（source_file / source_id、chunk_id / chank_id）
-        source   = _meta_get(md, "source_file", ["source", "source_id"])
-        chunk_id = _meta_get(md, "chunk_id", ["chank_id", "chunkKey"]) or key
-        pair_id  = _to_int_or_none(_meta_get(md, "pair_id", ["pairId"]))
+        md       = m.get("metadata") or {}
+        source_id = _meta_get(md, "source_id", ["source_file", "source"])
+        chunk_id  = _meta_get(md, "chunk_id", ["chank_id"]) or key
+        pair_id   = _to_int_or_none(_meta_get(md, "pair_id", ["pairId"]))
 
         original = _fetch_original_chunk_for_search(s3_client, chunk_id)
 
@@ -235,57 +234,16 @@ def _query_s3vectors(query_text: str, top_k_: int, score_threshold: float):
             "score": score,
             "distance": distance,
             "key": key,
-            "source_file": source,   # 表示用
+            "source_id": source_id,   # 表示ヒント
             "chunk_id": chunk_id,
             "pair_id": pair_id,
-            "original": original,    # JSONL当該行
+            "original": original,
         })
 
     out.sort(key=lambda x: x["score"], reverse=True)
     return out
 
-# ========================= セッション初期化 =========================
-for key in ["agreed", "query", "send_now", "last_answer", "last_matches", "is_generating",
-            "input", "input_value", "suggestions_sampled", "qa_pairs", "clarified", "clarify_active"]:
-    if key not in st.session_state:
-        if key in ["query", "last_answer", "input", "input_value"]:
-            st.session_state[key] = ""
-        elif key == "suggestions_sampled":
-            st.session_state[key] = []
-        elif key in ["last_matches", "qa_pairs"]:
-            st.session_state[key] = []
-        elif key == "clarify_active":
-            st.session_state[key] = False
-        else:
-            st.session_state[key] = False
-
-# ========================= 各種ユーティリティ =========================
-def load_prompt(filename, default_text=""):
-    try:
-        with open("prompts/" + filename, "r", encoding="utf-8") as f:
-            return f.read()
-    except Exception:
-        return default_text
-
-# 同意画面
-if not st.session_state.agreed:
-    st.title("📜きいてギカイやまぐち（β）")
-    st.markdown("""
-    ### ご利用にあたってのご案内
-    - このチャットでは、山口市議会の議事録をもとに、議会でどんな議論が行われているかを知ることができます。  
-    - **個人情報（氏名・住所・連絡先など）の入力は行わないでください。**  
-    - チャット内容は記録されます。内容の記録に同意された方のみ、チャットをご利用ください。
-    """)
-    st.warning("このチャットを利用するには、以下の内容に同意いただく必要があります。")
-    if st.button("✅ 同意してチャットをはじめる"):
-        st.session_state.agreed = True
-        st.rerun()
-    st.stop()
-
-# OpenAIクライアント（要約で使用）
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-
-# Google Sheets ログ
+# ========================= Google Sheets ログ =========================
 def get_gspread_client():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     creds = ServiceAccountCredentials.from_json_keyfile_dict(st.secrets["gsheets_service_account"], scope)
@@ -300,38 +258,7 @@ def log_to_gsheet(question, answer):
     except Exception as e:
         st.warning(f"⚠️ ログ記録に失敗しました: {e}")
 
-# Google Drive（現状未使用の補助関数：残置）
-def list_txt_files_recursive(service, folder_id):
-    query = f"'{folder_id}' in parents and trashed = false"
-    files = []
-    page_token = None
-    while True:
-        response = service.files().list(
-            q=query,
-            spaces='drive',
-            fields="nextPageToken, files(id, name, mimeType)",
-            pageToken=page_token
-        ).execute()
-        for file in response.get('files', []):
-            if file['mimeType'] == 'application/vnd.google-apps.folder':
-                files.extend(list_txt_files_recursive(service, file['id']))
-            elif file['name'].endswith(".txt"):
-                files.append(file)
-        page_token = response.get('nextPageToken', None)
-        if page_token is None:
-            break
-    return files
-
-def download_file_content(service, file_id):
-    file_data = service.files().get_media(fileId=file_id).execute()
-    detected = chardet.detect(file_data)
-    encoding = detected["encoding"] or "utf-8"
-    return file_data.decode(encoding, errors="replace")
-
-def on_enter():
-    if st.session_state.input.strip():
-        st.session_state.send_now = True
-
+# ========================= Clarify（任意） =========================
 def clarify_query(user_query):
     clarify_prompt = load_prompt(
         "gikai_clarify_prompt.txt",
@@ -342,7 +269,7 @@ def clarify_query(user_query):
         {"role": "user", "content": f"【質問】{user_query}"}
     ]
     try:
-        response = client.chat.completions.create(
+        response = client_oai.chat.completions.create(
             model=GPT_MODEL,
             messages=messages,
             temperature=GPT_TEMPERATURE
@@ -358,29 +285,22 @@ def clarify_query(user_query):
 def search_s3vector_and_respond(query):
     # --- ベクター検索 ---
     try:
-        hits = _query_s3vectors(
-            query_text=query,
-            top_k_=TOP_N_RETURN,
-            score_threshold=SIM_THRESHOLD,
-        )
+        hits = _query_s3vectors(query_text=query, top_k=TOP_K, score_threshold=SIM_THRESHOLD)
     except Exception as e:
         return {"matches": [], "summary": f" 検索エラーが発生しました: {e}", "qa_pairs": []}
 
     if not hits:
         return {"matches": [], "summary": " 関連する議事録の抜粋は見つかりませんでした。", "qa_pairs": []}
 
-    # 上位N件
-    top_hits = hits[:TOP_N_RETURN]
-
     # 表示用整形：QAペア抽出に必要な speaker/qa_role/pair_id を original or metadata から取り出す
     top_matches = []
-    for h in top_hits:
+    for h in hits[:TOP_K]:
         o = h.get("original") or {}
         jsonl_base = _base_from_chunk_id(h.get("chunk_id") or "")
         pid = _to_int_or_none(h.get("pair_id") or o.get("pair_id"))
         top_matches.append({
             "score": float(h.get("score", 0.0)),
-            "source_file": h.get("source_file") or o.get("source_file") or o.get("source_id") or "",
+            "source_id": h.get("source_id") or o.get("source_id") or o.get("source_file") or "",
             "chunk_id": h.get("chunk_id"),
             "jsonl_base": jsonl_base,
             "text": o.get("text", ""),
@@ -390,51 +310,45 @@ def search_s3vector_and_respond(query):
             "qa_role": o.get("qa_role"),
         })
 
-    # ---- pair_id を使って S3 Select で Q/A を取得（全文ロードを廃止）----
+    # ---- pair_id を使って S3 Select で Q/A を取得 ----
     s3_client = _boto_s3()
-
     qa_pairs = []
+
     for m in top_matches:
         jb  = m.get("jsonl_base")
         pid = m.get("pair_id")
-        src = m.get("source_file")
+        src = m.get("source_id")
         if pid is None:
             continue
 
         # JSONLキー候補を推定（.jsonlのみ）
-        jsonl_keys = _guess_jsonl_keys(jb, src, OUTPUT_PREFIX)
+        jsonl_keys = _guess_jsonl_key_from_chunk_or_source(jb, src)
 
         recs = []
-        last_err = None
         for jsonl_key in jsonl_keys:
+            # まず存在確認（HEAD）
             try:
-                # まず存在確認（HEAD）
-                try:
-                    _ = s3_client.head_object(Bucket=DATA_BUCKET_NAME, Key=jsonl_key)
-                except Exception:
-                    # 無ければ次候補
-                    continue
-
+                s3_client.head_object(Bucket=DATA_BUCKET_NAME, Key=jsonl_key)
+            except Exception:
+                continue
+            try:
                 recs = _s3select_pair_records(s3_client, jsonl_key, int(pid))
                 if recs:
                     break
-            except Exception as e:
-                last_err = e
+            except Exception:
                 continue
 
         if not recs:
-            if last_err:
-                st.warning(f"S3 Select失敗: {jsonl_keys} pair_id={pid} :: {last_err}")
             continue
 
         Q = [r for r in recs if r.get("qa_role") == "Q"]
         A = [r for r in recs if r.get("qa_role") == "A"]
-        src_name = recs[0].get("source_file") or recs[0].get("source_id") or (src or (jb + ".txt"))
+        src_name = recs[0].get("source_id") or recs[0].get("source_file") or (src or (jb + ".txt"))
         for r in Q + A:
             r.setdefault("source_file", src_name)
         qa_pairs.append({"pair_id": int(pid), "source_file": src_name, "jsonl_base": jb, "Q": Q, "A": A})
 
-    # ペアごとの要約 → 全体要約
+    # --- ペアごとの要約 → 全体要約 ---
     try:
         gikai_pair_prompt = load_prompt(
             "gikai_pair_summary.txt",
@@ -453,7 +367,7 @@ def search_s3vector_and_respond(query):
             if not qa_ctx.strip():
                 pair["summary"] = "⚠️ 該当Q/A本文なし"
                 continue
-            resp = client.chat.completions.create(
+            resp = client_oai.chat.completions.create(
                 model=GPT_MODEL,
                 messages=[{"role": "system", "content": gikai_pair_prompt},
                           {"role": "user", "content": qa_ctx}],
@@ -465,7 +379,7 @@ def search_s3vector_and_respond(query):
 
         if summary_per_pair:
             ctx = "\n\n".join([f"{i+1}件目：{s}" for i, s in enumerate(summary_per_pair)])
-            resp = client.chat.completions.create(
+            resp = client_oai.chat.completions.create(
                 model=GPT_MODEL,
                 messages=[{"role": "system", "content": summary_overall_prompt},
                           {"role": "user", "content": ctx}],
@@ -482,6 +396,20 @@ def search_s3vector_and_respond(query):
 
 # ========================= UI =========================
 st.title("📜 きいてギカイやまぐち（β）")
+
+# 同意画面
+if not st.session_state.agreed:
+    st.markdown("""
+    ### ご利用にあたってのご案内
+    - このチャットでは、山口市議会の議事録をもとに、議会でどんな議論が行われているかを知ることができます。  
+    - **個人情報（氏名・住所・連絡先など）の入力は行わないでください。**  
+    - チャット内容は記録されます。内容の記録に同意された方のみ、チャットをご利用ください。
+    """)
+    st.warning("このチャットを利用するには、以下の内容に同意いただく必要があります。")
+    if st.button("✅ 同意してチャットをはじめる"):
+        st.session_state.agreed = True
+        st.rerun()
+    st.stop()
 
 # 入力欄
 st.markdown("---\n\n#### 💬 質問してみよう")
@@ -578,12 +506,12 @@ elif st.session_state.last_answer and (st.session_state.qa_pairs or st.session_s
                 with st.expander(f"🔵【答弁】{a.get('speaker_role')} {a.get('speaker')}（{a.get('source_file', '').replace('.txt', '')}）"):
                     st.markdown(a.get("text", ""))
 
-    # QAが組めなかった場合でも、ヒット断片を表示（デバッグにも有効）
+    # QAが組めなかった場合でも、ヒット断片を表示
     if not st.session_state.qa_pairs and st.session_state.last_matches:
         st.markdown("---\n\n#### 🔎 ヒットした発言（ペア未形成）")
         for m in st.session_state.last_matches:
             score_pct = f"{m.get('score',0.0)*100:.1f}%"
-            with st.expander(f"{m.get('speaker_role','')} {m.get('speaker','')}｜{m.get('source_file','')}｜類似度 {score_pct}｜chunk_id={m.get('chunk_id')}"):
+            with st.expander(f"{m.get('speaker_role','')} {m.get('speaker','')}｜{m.get('source_id','')}｜類似度 {score_pct}｜chunk_id={m.get('chunk_id')}"):
                 st.write(m.get("text",""))
 
 elif st.session_state.send_now or st.session_state.input.strip() or st.session_state.query:
@@ -596,130 +524,3 @@ st.caption("""
 🙌 本プロジェクトは個人により運営されています。ご支援いただける方はぜひこちらから：  
 [💛 codocで支援する](https://codoc.jp/sites/p8cEFlTZQA/entries/MMZnODc1dw)
 """)
-
-# ========================= デバッグパネル =========================
-with st.expander("🧪 デバッグ：ベクター命中 → JSONLキー推定 → S3 Select 確認", expanded=False):
-    if st.session_state.last_matches:
-        # 先頭5件を表示（score/distance/metadata）
-        debug_rows = []
-        for h in st.session_state.last_matches[:5]:
-            jsonl_base = _base_from_chunk_id(h.get("chunk_id") or "")
-            source_hint = h.get("source_file") or ""
-            pid = h.get("pair_id") or (h.get("original") or {}).get("pair_id")
-            jsonl_keys = _guess_jsonl_keys(jsonl_base, source_hint, OUTPUT_PREFIX)
-            debug_rows.append({
-                "score": round(float(h.get("score", 0.0)), 4),
-                "distance": round(float(h.get("distance", 0.0)), 4),
-                "source_hint": source_hint,
-                "chunk_id": h.get("chunk_id"),
-                "pair_id": pid,
-                "jsonl_base": jsonl_base,
-                "jsonl_keys_guess": " | ".join(jsonl_keys),
-            })
-        st.write("▶ 先頭ヒットのメタ確認（最大5件）")
-        st.dataframe(debug_rows, use_container_width=True)
-
-        # JSONLの存在確認（HEAD）＆ S3 Select をその場テスト
-        s3_client_dbg = _boto_s3()
-
-        # テスト対象の1件を選ぶ
-        h0 = st.session_state.last_matches[0]
-        jb0 = _base_from_chunk_id(h0.get("chunk_id") or "")
-        src0 = h0.get("source_file") or ""
-        pid0 = _to_int_or_none(h0.get("pair_id") or (h0.get("original") or {}).get("pair_id"))
-        jsonl_keys0 = _guess_jsonl_keys(jb0, src0, OUTPUT_PREFIX)
-
-        st.write("▶ 1件テスト対象")
-        st.json({
-            "source_hint": src0,
-            "chunk_id": h0.get("chunk_id"),
-            "pair_id": pid0,
-            "jsonl_base": jb0,
-            "jsonl_keys_guess": jsonl_keys0
-        })
-
-        # S3上に実在するキーを特定
-        existing = []
-        for key in jsonl_keys0:
-            try:
-                s3_client_dbg.head_object(Bucket=DATA_BUCKET_NAME, Key=key)
-                existing.append(key)
-            except Exception:
-                pass
-
-        st.write("▶ S3上で存在確認できた JSONL キー", existing if existing else "（なし）")
-
-        # ボタンでS3 Selectを実行（pair_idは負値やNoneはスキップ）
-        if st.button("この1件で S3 Select テスト実行"):
-            if (pid0 is None) or (int(pid0) < 0):
-                st.error(f"pair_id={pid0} は無効（None/負数）。別のヒットを選んでください。")
-            else:
-                recs = []
-                errs = []
-                for key in (existing or jsonl_keys0):
-                    try:
-                        recs = _s3select_pair_records(s3_client_dbg, key, int(pid0))
-                        if recs:
-                            st.success(f"S3 Select成功: s3://{DATA_BUCKET_NAME}/{key} pair_id={pid0}")
-                            # 取得件数やQ/A内訳
-                            Q = [r for r in recs if r.get("qa_role") == "Q"]
-                            A = [r for r in recs if r.get("qa_role") == "A"]
-                            N = [r for r in recs if r.get("qa_role") == "N"]
-                            st.write({"Q": len(Q), "A": len(A), "N": len(N), "total": len(recs)})
-                            # 先頭のQ/Aを確認用に表示
-                            if Q:
-                                st.markdown(f"**Q（先頭1件）**: {Q[0].get('speaker_role','')} {Q[0].get('speaker','')}")
-                                st.code(Q[0].get("text","")[:500])
-                            if A:
-                                st.markdown(f"**A（先頭1件）**: {A[0].get('speaker_role','')} {A[0].get('speaker','')}")
-                                st.code(A[0].get("text","")[:500])
-                            break
-                    except Exception as e:
-                        errs.append(f"{key} :: {e}")
-                        continue
-                if not recs:
-                    st.error("S3 Selectで該当レコードが見つかりませんでした。")
-                    if errs:
-                        st.write("試行ログ", errs)
-    else:
-        st.info("検索ヒットがまだありません。質問を投げた後にご確認ください。")
-
-# ========================= 環境チェック（プローブ） =========================
-with st.expander("🧪 環境チェック：埋め込み次元 & S3 Vectors プローブ", expanded=False):
-    try:
-        # 1) 埋め込み次元を表示
-        _emb = _oai_for_embed.embeddings.create(model=EMBED_MODEL, input="ping")
-        _vec = [float(x) for x in _emb.data[0].embedding]
-        dim = len(_vec)
-        st.write({"embedding_model": EMBED_MODEL, "embedding_dim": dim})
-
-        # 2) プローブ用の疑似ベクトルで indexArn に対して生クエリ
-        s3v_dbg = _boto_s3vectors()
-
-        probe = [0.0] * dim
-        probe[0] = 1.0
-
-        res = s3v_dbg.query_vectors(
-            indexArn=S3_INDEX_ARN,
-            queryVector={"float32": probe},
-            topK=3,
-            returnMetadata=True,
-            returnDistance=True,
-        )
-
-        vecs = res.get("vectors", []) or []
-        sample = vecs[0] if vecs else {}
-        st.write({
-            "probe_vectors_len": len(vecs),
-            "probe_first_keys": list(sample.keys()) if sample else [],
-            "probe_first_sample": {
-                "distance": sample.get("distance"),
-                "score": sample.get("score"),  # S3Vectorsが返さない場合はNoneのままでもOK
-                "key": sample.get("key") or sample.get("id"),
-                "metadata_keys": list((sample.get("metadata") or {}).keys()) if sample else [],
-            }
-        })
-
-    except Exception as e:
-        st.error(f"プローブ失敗: {e}")
-        st.info("→ 典型原因: indexArn/リージョン不一致、次元不一致、インデックス未投入、認可エラー")
