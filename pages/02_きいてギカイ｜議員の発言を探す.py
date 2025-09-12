@@ -526,3 +526,119 @@ st.caption("""
 🙌 本プロジェクトは個人により運営されています。ご支援いただける方はぜひこちらから：  
 [💛 codocで支援する](https://codoc.jp/sites/p8cEFlTZQA/entries/MMZnODc1dw)
 """)
+
+
+# --- デバッグ用：JSONLキー推定（chunk_id と source_file の両にらみ）
+def _guess_jsonl_keys(jsonl_base: str | None, source_file: str | None, output_prefix: str) -> list[str]:
+    cands = []
+    if jsonl_base:
+        cands.append(f"{output_prefix}{jsonl_base}.jsonl")
+    if source_file:
+        stem = re.sub(r"\.txt$", "", source_file or "")
+        cands.append(f"{output_prefix}{stem}.jsonl")
+
+    # 全半角ゆれの軽い正規化
+    def _norm(s: str) -> str:
+        return s.replace("（", "(").replace("）", ")").replace("　", " ").strip()
+
+    extras = []
+    for k in list(cands):
+        base = k.replace(output_prefix, "").replace(".jsonl", "")
+        nb = _norm(base)
+        if nb != base:
+            extras.append(f"{output_prefix}{nb}.jsonl")
+
+    # 重複除去
+    return list(dict.fromkeys(cands + extras))
+# ========== ▼ デバッグパネル =============================================
+with st.expander("🧪 デバッグ：ベクター命中 → JSONLキー推定 → S3 Select 確認", expanded=False):
+    if st.session_state.last_matches:
+        # 先頭5件を表示（score/distance/metadata）
+        debug_rows = []
+        for h in st.session_state.last_matches[:5]:
+            jsonl_base = re.sub(r"_[0-9]{1,3}$", "", (h.get("chunk_id") or ""))
+            source_file = h.get("source_file") or ""
+            pid = h.get("pair_id") or (h.get("original") or {}).get("pair_id")
+            jsonl_keys = _guess_jsonl_keys(jsonl_base, source_file, OUTPUT_PREFIX)
+            debug_rows.append({
+                "score": round(float(h.get("score", 0.0)), 4),
+                "distance": round(float(h.get("distance", 0.0)), 4),
+                "source_file": source_file,
+                "chunk_id": h.get("chunk_id"),
+                "pair_id": pid,
+                "jsonl_base": jsonl_base,
+                "jsonl_keys_guess": " | ".join(jsonl_keys),
+            })
+        st.write("▶ 先頭ヒットのメタ確認（最大5件）")
+        st.dataframe(debug_rows, use_container_width=True)
+
+        # JSONLの存在確認（HEAD）＆ S3 Select をその場テスト
+        s3_client_dbg = boto3.client(
+            "s3",
+            aws_access_key_id=AWS_ACCESS_KEY_S,
+            aws_secret_access_key=AWS_SECRET_KEY_S,
+            region_name=AWS_REGION,
+        )
+
+        # テスト対象の1件を選ぶ
+        h0 = st.session_state.last_matches[0]
+        jb0 = re.sub(r"_[0-9]{1,3}$", "", (h0.get("chunk_id") or ""))
+        src0 = h0.get("source_file") or ""
+        pid0 = h0.get("pair_id") or (h0.get("original") or {}).get("pair_id")
+        jsonl_keys0 = _guess_jsonl_keys(jb0, src0, OUTPUT_PREFIX)
+
+        st.write("▶ 1件テスト対象")
+        st.json({
+            "source_file": src0,
+            "chunk_id": h0.get("chunk_id"),
+            "pair_id": pid0,
+            "jsonl_base": jb0,
+            "jsonl_keys_guess": jsonl_keys0
+        })
+
+        # S3上に実在するキーを特定
+        existing = []
+        for key in jsonl_keys0:
+            try:
+                s3_client_dbg.head_object(Bucket=DATA_BUCKET_NAME, Key=key)
+                existing.append(key)
+            except Exception as e:
+                pass
+
+        st.write("▶ S3上で存在確認できた JSONL キー", existing if existing else "（なし）")
+
+        # ボタンでS3 Selectを実行（pair_idは負値やNoneはスキップ）
+        if st.button("この1件で S3 Select テスト実行"):
+            if (pid0 is None) or (int(pid0) < 0):
+                st.error(f"pair_id={pid0} は無効（None/負数）。別のヒットを選んでください。")
+            else:
+                recs = []
+                errs = []
+                for key in (existing or jsonl_keys0):
+                    try:
+                        recs = _s3select_pair_records(s3_client_dbg, key, int(pid0))
+                        if recs:
+                            st.success(f"S3 Select成功: s3://{DATA_BUCKET_NAME}/{key} pair_id={pid0}")
+                            # 取得件数やQ/A内訳
+                            Q = [r for r in recs if r.get("qa_role") == "Q"]
+                            A = [r for r in recs if r.get("qa_role") == "A"]
+                            N = [r for r in recs if r.get("qa_role") == "N"]
+                            st.write({"Q": len(Q), "A": len(A), "N": len(N), "total": len(recs)})
+                            # 先頭のQ/Aを確認用に表示
+                            if Q:
+                                st.markdown(f"**Q（先頭1件）**: {Q[0].get('speaker_role','')} {Q[0].get('speaker','')}")
+                                st.code(Q[0].get("text","")[:500])
+                            if A:
+                                st.markdown(f"**A（先頭1件）**: {A[0].get('speaker_role','')} {A[0].get('speaker','')}")
+                                st.code(A[0].get("text","")[:500])
+                            break
+                    except Exception as e:
+                        errs.append(f"{key} :: {e}")
+                        continue
+                if not recs:
+                    st.error("S3 Selectで該当レコードが見つかりませんでした。")
+                    if errs:
+                        st.write("試行ログ", errs)
+    else:
+        st.info("検索ヒットがまだありません。質問を投げた後にご確認ください。")
+
