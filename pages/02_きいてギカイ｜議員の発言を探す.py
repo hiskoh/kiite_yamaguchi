@@ -13,6 +13,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 import random, json, re, boto3
 import numpy as np
+from typing import List, Dict, Any, TypedDict
 
 # ========================= ページ設定 =========================
 st.set_page_config(page_title="きいてギカイやまぐち（β）", layout="wide", page_icon="📜")
@@ -105,6 +106,25 @@ def _meta_get(md: dict, primary: str, alts: list[str]):
 
     # 重複除去
     return list(dict.fromkeys(cands + extras))
+
+class RagResponse(TypedDict):
+    matches: List[Dict[str, Any]]
+    summary: str
+    qa_pairs: List[Dict[str, Any]]
+
+def _normalize_rag_response(obj: Dict[str, Any] | None) -> RagResponse:
+    if obj is None:
+        obj = {}
+    matches = obj.get("matches")
+    if not isinstance(matches, list):
+        matches = []
+    summary = obj.get("summary")
+    if not isinstance(summary, str):
+        summary = ""
+    qa_pairs = obj.get("qa_pairs")
+    if not isinstance(qa_pairs, list):
+        qa_pairs = []
+    return RagResponse(matches=matches, summary=summary, qa_pairs=qa_pairs)
 
 # ========================= クライアント =========================
 client_oai = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
