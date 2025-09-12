@@ -27,10 +27,10 @@ EMBED_MODEL      = "text-embedding-3-small"
 
 # AWS
 AWS_REGION       = "us-west-2"
-OUTPUT_PREFIX    = "council_chunk_jsonl/"  # ← 実データに合わせる
+OUTPUT_PREFIX    = "council_chunk_jsonl/" 
 AWS_ACCESS_KEY_S = st.secrets["AWS-KEY"]["AWS_ACCESS_KEY"]
 AWS_SECRET_KEY_S = st.secrets["AWS-KEY"]["AWS_SECRET_KEY"]
-DATA_BUCKET_NAME = st.secrets["AWS-KEY"]["DATA_BUCKET_NAME"]  # バケット名のみ
+DATA_BUCKET_NAME = st.secrets["AWS-KEY"]["DATA_BUCKET_NAME"]  
 S3_INDEX_ARN     = st.secrets["AWS-KEY"]["VECTOR_INDEX_ARN_COUNCIL"]
 
 # ========= ▼ S3 Vectors 検索ユーティリティ ===============================
@@ -136,6 +136,33 @@ def _query_s3vectors(query_text: str, top_k_: int, score_threshold: float):
     )
     matches = res.get("vectors", []) or []
 
+
+        # --- ▼ デバッグ出力：クエリ応答の生構造 & サンプル値 -----------------
+    try:
+        _vecs = res.get("vectors", []) or []
+        _first = _vecs[0] if _vecs else {}
+        st.write({
+            "DEBUG/query_vectors": {
+                "topK_used": max(TOPK_CANDIDATES, top_k_),
+                "qvec_dim": len(qvec),
+                "vectors_len": len(_vecs),
+                "first_vector": {
+                    "distance": _first.get("distance"),
+                    "score": _first.get("score"),
+                    "key": _first.get("key") or _first.get("id"),
+                    "metadata_keys": list((_first.get("metadata") or {}).keys()) if _first else [],
+                }
+            }
+        })
+    except Exception:
+        pass
+
+        st.error(f"プローブ失敗: {e}")
+        st.info("→ 典型原因: indexArn/リージョン不一致、次元不一致、インデックス未投入、認可エラー")
+
+    # --- ▼ デバッグ出力：クエリ応答の生構造 & サンプル値 -----------------
+
+    
     out = []
     for m in matches:
         key      = m.get("key") or m.get("id")
@@ -686,26 +713,6 @@ with st.expander("🧪 環境チェック：埋め込み次元 & S3 Vectors プ�
             }
         })
 
-    except Exception as e:    # --- ▼ デバッグ出力：クエリ応答の生構造 & サンプル値 -----------------
-    try:
-        _vecs = res.get("vectors", []) or []
-        _first = _vecs[0] if _vecs else {}
-        st.write({
-            "DEBUG/query_vectors": {
-                "topK_used": max(TOPK_CANDIDATES, top_k_),
-                "qvec_dim": len(qvec),
-                "vectors_len": len(_vecs),
-                "first_vector": {
-                    "distance": _first.get("distance"),
-                    "score": _first.get("score"),
-                    "key": _first.get("key") or _first.get("id"),
-                    "metadata_keys": list((_first.get("metadata") or {}).keys()) if _first else [],
-                }
-            }
-        })
-    except Exception:
-        pass
-
+    except Exception as e:
         st.error(f"プローブ失敗: {e}")
         st.info("→ 典型原因: indexArn/リージョン不一致、次元不一致、インデックス未投入、認可エラー")
-
