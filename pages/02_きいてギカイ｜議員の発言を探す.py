@@ -352,7 +352,7 @@ def clarify_query(user_query):
         return {"ambiguous": False, "reason": "", "rewritten_query": ""}
 
 # ========================= 検索〜要約 本体 =========================
-def search_s3vector_and_respond(query: str) -> RagResponse:
+def search_s3vector_and_respond(query: str) :
     """
     - S3Vectorsでヒット → 上位 TOP_K 件から pair_id を集約
     - pair_id が取れたものは Q/A を S3 Select で回収して要約
