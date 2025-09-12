@@ -194,12 +194,6 @@ def _s3select_pair_records(s3_client, jsonl_key: str, pair_id: int):
 
 # ========================= ベクター検索（S3 Vectors） =========================
 def _query_s3vectors(query_text: str, top_k: int, score_threshold: float):
-    """
-    S3 Vectors を検索し、[{score, distance, key, source_id, chunk_id, pair_id, original}] を返す。
-    original には JSONL の当該オブジェクト（speaker/qa_role等）が入る。
-    ※ メタキーは source_id / chank_id / pair_id を想定。chunk_idにもフォールバック。
-    """
-    # クエリ埋め込み（インデックス作成時のモデルに合わせること）
     emb = client_oai.embeddings.create(model=EMBED_MODEL, input=query_text)
     qvec = [float(x) for x in emb.data[0].embedding]
 
@@ -215,18 +209,30 @@ def _query_s3vectors(query_text: str, top_k: int, score_threshold: float):
     )
     matches = res.get("vectors", []) or []
 
+    # ここから：デバッグ可視化（フィルタ前）
+    st.write({
+        "DEBUG_raw_vectors_len": len(matches),
+        "DEBUG_raw_top5_dist": [float(m.get("distance", 0.0)) for m in matches[:5]],
+        "DEBUG_raw_top5_score(1-d)": [1.0 - float(m.get("distance", 0.0)) for m in matches[:5]],
+        "DEBUG_embed_model": EMBED_MODEL,
+    })
+
     out = []
+    dropped_low_score = 0
+
     for m in matches:
         key      = m.get("key") or m.get("id")
         distance = float(m.get("distance", 0.0))
-        score    = _to_similarity(distance)
+        score    = 1.0 - distance
         if score < score_threshold:
+            dropped_low_score += 1
             continue
 
         md       = m.get("metadata") or {}
-        source_id = _meta_get(md, "source_id", ["source_file", "source"])
-        chunk_id  = _meta_get(md, "chunk_id", ["chank_id"]) or key
-        pair_id   = _to_int_or_none(_meta_get(md, "pair_id", ["pairId"]))
+        source_id = md.get("source_id") or md.get("source_file") or md.get("source")
+        chunk_id  = md.get("chunk_id") or md.get("chank_id") or key
+        pair_id   = md.get("pair_id") or md.get("pairId")
+        pair_id   = int(float(pair_id)) if pair_id is not None else None
 
         original = _fetch_original_chunk_for_search(s3_client, chunk_id)
 
@@ -234,14 +240,48 @@ def _query_s3vectors(query_text: str, top_k: int, score_threshold: float):
             "score": score,
             "distance": distance,
             "key": key,
-            "source_id": source_id,   # 表示ヒント
+            "source_id": source_id,
             "chunk_id": chunk_id,
             "pair_id": pair_id,
             "original": original,
         })
 
     out.sort(key=lambda x: x["score"], reverse=True)
+
+    # ここまでの集計理由を出力
+    st.write({
+        "DEBUG_after_filter_len": len(out),
+        "DEBUG_dropped_low_score": dropped_low_score,
+        "DEBUG_threshold": score_threshold,
+        "DEBUG_top5_after": [
+            {
+                "score": round(h["score"], 4),
+                "distance": round(h["distance"], 4),
+                "source_id": h["source_id"],
+                "chunk_id": h["chunk_id"],
+                "pair_id": h["pair_id"],
+            } for h in out[:5]
+        ]
+    })
+
+    # フェイルセーフ：全部落ちたら、しきい値を無視して上位だけ返す（低確度だがUIで見える化）
+    if not out and matches:
+        fallback = []
+        for m in matches[:min(top_k, len(matches))]:
+            md  = m.get("metadata") or {}
+            fallback.append({
+                "score": 1.0 - float(m.get("distance", 0.0)),
+                "distance": float(m.get("distance", 0.0)),
+                "key": m.get("key") or m.get("id"),
+                "source_id": md.get("source_id") or md.get("source_file") or md.get("source"),
+                "chunk_id": md.get("chunk_id") or md.get("chank_id") or (m.get("key") or m.get("id")),
+                "pair_id": int(float(md.get("pair_id"))) if md.get("pair_id") is not None else None,
+                "original": None,
+            })
+        st.warning("全件がしきい値で除外されたため、低確度フェイルセーフで上位を暫定表示します。")
+        return fallback
     return out
+
 
 # ========================= Google Sheets ログ =========================
 def get_gspread_client():
