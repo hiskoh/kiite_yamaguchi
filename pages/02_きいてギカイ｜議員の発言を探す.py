@@ -91,18 +91,6 @@ def _meta_get(md: dict, primary: str, alts: list[str]):
             return v
     return None
 
-def _guess_jsonl_key_from_chunk_or_source(jsonl_base: str | None, source_id: str | None) -> list[str]:
-    """
-    - 通常は {OUTPUT_PREFIX}{jsonl_base}.jsonl を第一候補に
-    - source_id（ファイル名相当のヒント）があれば stem.jsonl を候補に追加
-    - 全半角ゆれの軽い正規化も試す
-    """
-    cands = []
-    if jsonl_base:
-        cands.append(f"{OUTPUT_PREFIX}{jsonl_base}.jsonl")
-    if source_id:
-        stem = re.sub(r"\.txt$", "", source_id or "")
-        cands.append(f"{OUTPUT_PREFIX}{stem}.jsonl")
 
     def _norm(s: str) -> str:
         return s.replace("（", "(").replace("）", ")").replace("　", " ").strip()
@@ -360,22 +348,16 @@ def search_s3vector_and_respond(query):
         if pid is None:
             continue
 
-        # JSONLキー候補を推定（.jsonlのみ）
-        jsonl_keys = _guess_jsonl_key_from_chunk_or_source(jb, src)
+        # jsonl_base を直接使ってキーを作る
+        jsonl_key = f"{OUTPUT_PREFIX}{jsonl_base}.jsonl"
 
         recs = []
-        for jsonl_key in jsonl_keys:
-            # まず存在確認（HEAD）
-            try:
-                s3_client.head_object(Bucket=DATA_BUCKET_NAME, Key=jsonl_key)
-            except Exception:
-                continue
-            try:
-                recs = _s3select_pair_records(s3_client, jsonl_key, int(pid))
-                if recs:
-                    break
-            except Exception:
-                continue
+        try:
+            s3_client.head_object(Bucket=DATA_BUCKET_NAME, Key=jsonl_key)
+            recs = _s3select_pair_records(s3_client, jsonl_key, int(pid))
+        except Exception as e:
+            st.warning(f"S3 Select失敗: {jsonl_key} pair_id={pid} :: {e}")
+
 
         if not recs:
             continue
