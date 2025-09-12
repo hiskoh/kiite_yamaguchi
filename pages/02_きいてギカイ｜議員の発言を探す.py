@@ -18,7 +18,7 @@ st.set_page_config(page_title="きいてギカイやまぐち（β）", layout="
 # 検索パラメータ
 TOP_N_RETURN     = 10    # UIに返す上位件数
 TOPK_CANDIDATES  = 40    # S3Vectorsから仮取得する候補の数（TOP_N_RETURN より多めに）
-SIM_THRESHOLD    = 0.10  # 類似度しきい値（0.0〜1.0, 高いほど類似）
+SIM_THRESHOLD    = 0 #.10  # 類似度しきい値（0.0〜1.0, 高いほど類似）
 
 # ChatGPT
 GPT_MODEL        = "gpt-4.1-mini"
