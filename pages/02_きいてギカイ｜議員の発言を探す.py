@@ -140,25 +140,23 @@ def _query_s3vectors(query_text: str, top_k_: int, score_threshold: float):
         # --- ▼ デバッグ出力：クエリ応答の生構造 & サンプル値 -----------------
     try:
         _vecs = res.get("vectors", []) or []
-        _first = _vecs[0] if _vecs else {}
+        _first3 = _vecs[:3]
         st.write({
             "DEBUG/query_vectors": {
-                "topK_used": max(TOPK_CANDIDATES, top_k_),
-                "qvec_dim": len(qvec),
                 "vectors_len": len(_vecs),
-                "first_vector": {
-                    "distance": _first.get("distance"),
-                    "score": _first.get("score"),
-                    "key": _first.get("key") or _first.get("id"),
-                    "metadata_keys": list((_first.get("metadata") or {}).keys()) if _first else [],
-                }
+                "samples": [
+                    {
+                        "distance": v.get("distance"),
+                        "score(1-d)": (1.0 - float(v.get("distance", 0.0))) if v.get("distance") is not None else None,
+                        "key": v.get("key") or v.get("id"),
+                        "meta_keys": list((v.get("metadata") or {}).keys())
+                    } for v in _first3
+                ]
             }
         })
     except Exception:
         pass
 
-        st.error(f"プローブ失敗: {e}")
-        st.info("→ 典型原因: indexArn/リージョン不一致、次元不一致、インデックス未投入、認可エラー")
 
     # --- ▼ デバッグ出力：クエリ応答の生構造 & サンプル値 -----------------
 
