@@ -70,9 +70,41 @@ def _fetch_original_chunk_for_search(s3_client, chunk_id: str) -> dict | None:
             return obj
     return None
 
+# --- 追加：S3 Selectで pair_id 一致行だけ抽出 ---
+def _s3select_pair_records(s3_client, jsonl_key: str, pair_id: int):
+    """
+    JSON Lines の議事録ファイル(jsonl_key)から、指定 pair_id の行のみを抽出。
+    Q→A→N の順にソートして返す。
+    """
+    expr = f"SELECT * FROM S3Object s WHERE s.pair_id = {int(pair_id)}"
+    resp = s3_client.select_object_content(
+        Bucket=DATA_BUCKET_NAME,
+        Key=jsonl_key,
+        ExpressionType="SQL",
+        Expression=expr,
+        InputSerialization={"JSON": {"Type": "LINES"}},
+        OutputSerialization={"JSON": {}},
+    )
+    records = []
+    for event in resp["Payload"]:
+        if "Records" in event:
+            chunk = event["Records"]["Payload"].decode("utf-8")
+            for line in chunk.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                    records.append(obj)
+                except Exception:
+                    pass
+    order = {"Q": 0, "A": 1, "N": 2}
+    records.sort(key=lambda r: order.get(r.get("qa_role"), 9))
+    return records
+
 def _query_s3vectors(query_text: str, top_k_: int, score_threshold: float):
     """
-    S3 Vectors を検索し、[{score, distance, key, source_file, chunk_id, original}] を返す。
+    S3 Vectors を検索し、[{score, distance, key, source_file, chunk_id, pair_id, original}] を返す。
     original には JSONL の当該オブジェクト（speaker/qa_role等）が入る。
     """
     # クエリ埋め込み
@@ -115,6 +147,7 @@ def _query_s3vectors(query_text: str, top_k_: int, score_threshold: float):
         md       = m.get("metadata") or {}
         source   = md.get("source_file")   # 表示用には残す
         chunk_id = md.get("chunk_id") or key
+        pair_id  = md.get("pair_id")       # ← 追加：メタから pair_id を取得
         original = _fetch_original_chunk_for_search(s3_client, chunk_id)
 
         out.append({
@@ -123,6 +156,7 @@ def _query_s3vectors(query_text: str, top_k_: int, score_threshold: float):
             "key": key,
             "source_file": source,
             "chunk_id": chunk_id,
+            "pair_id": pair_id,        # ← 追加：ヒットに pair_id を持たせる
             "original": original,
         })
 
@@ -256,24 +290,28 @@ def search_s3vector_and_respond(query):
     # 上位N件
     top_hits = hits[:TOP_N_RETURN]
 
-    # 表示用整形：QAペア抽出に必要な speaker/qa_role/pair_id を original から取り出す
+    # 表示用整形：QAペア抽出に必要な speaker/qa_role/pair_id を original or metadata から取り出す
     top_matches = []
     for h in top_hits:
         o = h.get("original") or {}
         jsonl_base = _base_from_chunk_id(h.get("chunk_id") or "")
+        # ← 変更：pair_id は metadata 優先で使用（h['pair_id']）
+        pid = h.get("pair_id")
+        if pid is None:
+            pid = o.get("pair_id")
         top_matches.append({
             "score": float(h.get("score", 0.0)),
             "source_file": h.get("source_file") or o.get("source_file") or "",
             "chunk_id": h.get("chunk_id"),
-            "jsonl_base": jsonl_base,              # ← 追加：S3キーはこれを使う
+            "jsonl_base": jsonl_base,
             "text": o.get("text", ""),
             "speaker": o.get("speaker"),
             "speaker_role": o.get("speaker_role"),
-            "pair_id": o.get("pair_id"),
+            "pair_id": pid,
             "qa_role": o.get("qa_role"),
         })
 
-    # 同一 jsonl_base ごとに全文をキャッシュ読み
+    # ---- ここから pair_id を使って S3 Select で Q/A を取得（全文ロードを廃止）----
     s3_client = boto3.client(
         "s3",
         aws_access_key_id=AWS_ACCESS_KEY_S,
@@ -281,62 +319,39 @@ def search_s3vector_and_respond(query):
         region_name=AWS_REGION,
     )
 
-    def _load_all_for_base(jsonl_base: str):
-        key = f"{OUTPUT_PREFIX}{jsonl_base}.jsonl"
-        body = s3_client.get_object(Bucket=DATA_BUCKET_NAME, Key=key)["Body"].read().decode("utf-8")
-        rows = []
-        for line in body.splitlines():
-            if not line.strip(): 
-                continue
-            rows.append(json.loads(line))
-        return rows
-
-    cache_all_by_base = {}
+    # (jsonl_base, pair_id) でユニーク化
+    pair_keys = []
+    seen = set()
     for m in top_matches:
-        jb = m["jsonl_base"]
-        if jb and jb not in cache_all_by_base:
-            try:
-                cache_all_by_base[jb] = _load_all_for_base(jb)
-            except Exception:
-                cache_all_by_base[jb] = []
-
-    # N（議長など）で pair_id が無いヒットは、近傍のQ/Aペアに吸着（前→後の順で探索）
-    def _infer_pair_id_from_neighbors(rows, chunk_id):
-        idx = next((i for i, r in enumerate(rows) if r.get("chunk_id") == chunk_id), None)
-        if idx is None:
-            return None
-        for j in range(idx, -1, -1):
-            pid = rows[j].get("pair_id")
-            if pid is not None:
-                return pid
-        for j in range(idx + 1, len(rows)):
-            pid = rows[j].get("pair_id")
-            if pid is not None:
-                return pid
-        return None
-
-    for m in top_matches:
-        if m.get("pair_id") is None and m.get("jsonl_base"):
-            rows = cache_all_by_base.get(m["jsonl_base"], [])
-            pid  = _infer_pair_id_from_neighbors(rows, m["chunk_id"])
-            if pid is not None:
-                m["pair_id"] = pid
-
-    # pair_id ごとにQ/A束ね（単位は (jsonl_base, pair_id) ）
-    qa_pairs = []
-    seen_pairs = set()
-    for m in top_matches:
-        jb  = m["jsonl_base"]
+        jb  = m.get("jsonl_base")
         pid = m.get("pair_id")
-        if jb and pid is not None and (jb, pid) not in seen_pairs:
-            seen_pairs.add((jb, pid))
-            rows = cache_all_by_base.get(jb, [])
-            group = [x for x in rows if x.get("pair_id") == pid]
-            q = [x for x in group if x.get("qa_role") == "Q"]
-            a = [x for x in group if x.get("qa_role") == "A"]
-            # 表示用の source_file は行の最初から補完
-            src = (m.get("source_file") or (group[0].get("source_file") if group else "")) or ""
-            qa_pairs.append({"pair_id": pid, "source_file": src, "jsonl_base": jb, "Q": q, "A": a})
+        if jb and (pid is not None):
+            key_tuple = (jb, int(pid))
+            if key_tuple not in seen:
+                seen.add(key_tuple)
+                pair_keys.append(key_tuple)
+
+    qa_pairs = []
+    for jb, pid in pair_keys:
+        jsonl_key = f"{OUTPUT_PREFIX}{jb}.jsonl"
+        try:
+            recs = _s3select_pair_records(s3_client, jsonl_key, pid)
+        except Exception as e:
+            recs = []
+            st.warning(f"S3 Select失敗: s3://{DATA_BUCKET_NAME}/{jsonl_key} pair_id={pid} :: {e}")
+
+        if not recs:
+            continue
+
+        Q = [r for r in recs if r.get("qa_role") == "Q"]
+        A = [r for r in recs if r.get("qa_role") == "A"]
+
+        # 表示用に source_file を補完
+        src_name = recs[0].get("source_file") if recs else f"{jb}.txt"
+        for r in Q + A:
+            r.setdefault("source_file", src_name)
+
+        qa_pairs.append({"pair_id": pid, "source_file": src_name, "jsonl_base": jb, "Q": Q, "A": A})
 
     # ペアごとの要約 → 全体要約
     try:
