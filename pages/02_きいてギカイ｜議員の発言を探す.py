@@ -1,3 +1,4 @@
+
 # -*- coding: utf-8 -*-
 # シンプル版：GoogleDrive+FAISS を S3 Vectors + .jsonl に移植
 # - インデックスのメタデータは {source_id, chank_id(or chunk_id), pair_id} を想定
@@ -659,19 +660,18 @@ with st.expander("🧪 S3 Select テスト（先頭ヒットで試す）", expan
         jb0 = _base_from_chunk_id(h0.get("chunk_id") or "")
         src0 = h0.get("source_id")
         pid0 = h0.get("pair_id")
-        jsonl_keys0 = [f"{OUTPUT_PREFIX}{jsonl_base}.jsonl"]
+        jsonl_key = f"{OUTPUT_PREFIX}{jsonl_base}.jsonl"
         st.write("▶ 先頭ヒット:", {"pair_id": pid0, "chunk_id": h0.get("chunk_id"), "source_id": src0})
-        st.write("▶ 推定JSONLキー:", jsonl_keys0)
+        st.write("▶ 推定JSONLキー:", jsonl_key)
 
         # S3存在チェック
-        exist_logs = []
-        for key in jsonl_keys0:
-            try:
-                s3_client_dbg.head_object(Bucket=DATA_BUCKET_NAME, Key=key)
-                exist_logs.append((key, True))
-            except Exception:
-                exist_logs.append((key, False))
-        st.write("▶ S3存在確認:", exist_logs)
+        exists = False
+        try:
+            s3_client_dbg.head_object(Bucket=DATA_BUCKET_NAME, Key=jsonl_key)
+            exists = True
+        except Exception:
+            exists = False
+        st.write("▶ S3存在確認:", (jsonl_key, exists))
 
         if st.button("S3 Select 実行", key="btn_s3sel"):
             if pid0 is None:
