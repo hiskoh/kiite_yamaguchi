@@ -524,3 +524,67 @@ st.caption("""
 🙌 本プロジェクトは個人により運営されています。ご支援いただける方はぜひこちらから：  
 [💛 codocで支援する](https://codoc.jp/sites/p8cEFlTZQA/entries/MMZnODc1dw)
 """)
+
+# --- フッター
+st.divider()
+st.caption("""
+⚠️ 回答は生成AIによるものであり、正確性を保証するものではありません。  
+🙌 本プロジェクトは個人により運営されています。ご支援いただける方はぜひこちらから：  
+[💛 codocで支援する](https://codoc.jp/sites/p8cEFlTZQA/entries/MMZnODc1dw)
+""")
+
+# ==================== デバッグチェッカー ====================
+with st.expander("🧪 デバッグチェッカー（検索ヒット & JSONL照合）", expanded=False):
+    if st.session_state.last_matches:
+        st.write("▶ ベクター検索のヒット件数:", len(st.session_state.last_matches))
+        st.json([
+            {
+                "score": round(float(m.get("score", 0.0)), 3),
+                "distance": round(float(m.get("distance", 0.0)), 3),
+                "source_id": m.get("source_id"),
+                "chunk_id": m.get("chunk_id"),
+                "pair_id": m.get("pair_id"),
+            }
+            for m in st.session_state.last_matches[:5]
+        ])
+
+        # 先頭ヒットについて JSONLキー推定とS3存在確認
+        s3_client_dbg = _boto_s3()
+        h0 = st.session_state.last_matches[0]
+        jb0 = _base_from_chunk_id(h0.get("chunk_id") or "")
+        src0 = h0.get("source_id")
+        pid0 = h0.get("pair_id")
+        jsonl_keys0 = _guess_jsonl_key_from_chunk_or_source(jb0, src0)
+
+        st.write("▶ 推定JSONLキー:", jsonl_keys0)
+        exist_logs = []
+        for key in jsonl_keys0:
+            try:
+                s3_client_dbg.head_object(Bucket=DATA_BUCKET_NAME, Key=key)
+                exist_logs.append((key, True))
+            except Exception:
+                exist_logs.append((key, False))
+        st.write("▶ S3存在確認:", exist_logs)
+
+        # ボタンでS3 Selectを実行
+        if st.button("この1件で S3 Select テスト実行"):
+            if pid0 is None:
+                st.error("pair_id が None のため実行不可")
+            else:
+                try:
+                    recs = []
+                    for key in jsonl_keys0:
+                        try:
+                            recs = _s3select_pair_records(s3_client_dbg, key, int(pid0))
+                            if recs:
+                                st.success(f"S3 Select成功: {len(recs)}件")
+                                st.json(recs[:3])  # 先頭3件だけ確認
+                                break
+                        except Exception as e:
+                            continue
+                    if not recs:
+                        st.error("S3 Selectで該当レコードが見つかりませんでした。")
+                except Exception as e:
+                    st.error(f"S3 Selectエラー: {e}")
+    else:
+        st.info("検索ヒットがまだありません。質問を投げた後に確認できます。")
