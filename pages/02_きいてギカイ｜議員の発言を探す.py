@@ -652,16 +652,23 @@ def _s3select_pair_records_lenient(s3_client, jsonl_key: str, pair_id: int):
     return records
 
 with st.expander("🧪 S3 Select テスト（先頭ヒットで試す）", expanded=False):
-    # 単語テストの結果 -> 既存last_matches の順で参照
+    # 単語テスト or 通常検索の結果
     cand = st.session_state.get("sv_test_matches") or st.session_state.get("last_matches") or []
     if cand:
         s3_client_dbg = _boto_s3()
         h0 = cand[0]
-        jb0 = _base_from_chunk_id(h0.get("chunk_id") or "")
-        src0 = h0.get("source_id")
+
+        # chunk_idからjsonl_baseを算出
+        jsonl_base = _base_from_chunk_id(h0.get("chunk_id") or "")
         pid0 = h0.get("pair_id")
+        src0 = h0.get("source_id")
         jsonl_key = f"{OUTPUT_PREFIX}{jsonl_base}.jsonl"
-        st.write("▶ 先頭ヒット:", {"pair_id": pid0, "chunk_id": h0.get("chunk_id"), "source_id": src0})
+
+        st.write("▶ 先頭ヒット:", {
+            "pair_id": pid0,
+            "chunk_id": h0.get("chunk_id"),
+            "source_id": src0,
+        })
         st.write("▶ 推定JSONLキー:", jsonl_key)
 
         # S3存在チェック
@@ -673,24 +680,19 @@ with st.expander("🧪 S3 Select テスト（先頭ヒットで試す）", expan
             exists = False
         st.write("▶ S3存在確認:", (jsonl_key, exists))
 
+        # S3 Select実行ボタン
         if st.button("S3 Select 実行", key="btn_s3sel"):
             if pid0 is None:
                 st.error("pair_id が None のため実行不可")
             else:
-                found = False
-                for key in jsonl_keys0:
-                    try:
-                        recs = _s3select_pair_records_lenient(s3_client_dbg, key, int(pid0))
-                        if recs:
-                            st.success(f"S3 Select成功: {len(recs)}件")
-                            st.json(recs[:3])
-                            found = True
-                            break
-                    except Exception as e:
-                        st.error(f"{key} :: {e}")
-                if not found:
-                    st.error("S3 Selectで該当レコードが見つかりませんでした。")
+                try:
+                    recs = _s3select_pair_records_lenient(s3_client_dbg, jsonl_key, int(pid0))
+                    if recs:
+                        st.success(f"S3 Select成功: {len(recs)}件")
+                        st.json(recs[:3])
+                    else:
+                        st.error("S3 Selectで該当レコードが見つかりませんでした。")
+                except Exception as e:
+                    st.error(f"S3 Selectエラー: {e}")
     else:
         st.info("まだ検索していません。まず単語テストを実行してください。")
-
-
