@@ -310,86 +310,79 @@ def clarify_query(user_query):
         return {"ambiguous": False, "reason": "", "rewritten_query": ""}
 
 # ========================= 検索〜要約 本体 =========================
-def search_s3vector_and_respond(query):
-    # --- ベクター検索 ---
+def search_s3vector_and_respond(query: str):
+    """
+    ▼ 変更点
+    - S3Vectorsでヒット → 先頭TOP_N_RETURN件の各hitから pair_id を取得
+    - chunk_idベースで {OUTPUT_PREFIX}{base}.jsonl を特定
+    - pair_id一致のQ/Aを抽出して要約
+    """
     try:
-        hits = _query_s3vectors(query_text=query, top_k=TOP_K, score_threshold=SIM_THRESHOLD)
+        hits = _query_s3vectors(query, TOP_N_RETURN, SIM_THRESHOLD)
     except Exception as e:
-        return {"matches": [], "summary": f" 検索エラーが発生しました: {e}", "qa_pairs": []}
+        return {"matches": [], "summary": f"🔍 検索エラーが発生しました: {e}"}
 
     if not hits:
-        return {"matches": [], "summary": " 関連する議事録の抜粋は見つかりませんでした。", "qa_pairs": []}
+        return {"matches": [], "summary": "🔍 類似度の高い発言は見つかりませんでした。"}
 
-    # 表示用整形：QAペア抽出に必要な speaker/qa_role/pair_id を original or metadata から取り出す
-    top_matches = []
-    for h in hits[:TOP_K]:
-        o = h.get("original") or {}
-        jsonl_base = _base_from_chunk_id(h.get("chunk_id") or "")
-        pid = _to_int_or_none(h.get("pair_id") or o.get("pair_id"))
-        top_matches.append({
-            "score": float(h.get("score", 0.0)),
-            "source_id": h.get("source_id") or o.get("source_id") or o.get("source_file") or "",
-            "chunk_id": h.get("chunk_id"),
-            "jsonl_base": jsonl_base,
-            "text": o.get("text", ""),
-            "speaker": o.get("speaker"),
-            "speaker_role": o.get("speaker_role"),
-            "pair_id": pid,
-            "qa_role": o.get("qa_role"),
-        })
-
-    # ---- pair_id を使って S3 Select で Q/A を取得 ----
     s3_client = _boto_s3()
+    top_hits = hits[:TOP_N_RETURN]
+
+    # UI向けの表示（ヒット断片）
+    top_matches = []
     qa_pairs = []
 
-    for m in top_matches:
-        jb  = m.get("jsonl_base")
-        pid = m.get("pair_id")
-        src = m.get("source_id")
+    for h in top_hits:
+        # 断片の一覧（miraiのUIに合わせた形：scoreは類似度）
+        o = h.get("original") or {}
+        top_matches.append({
+            "text": o.get("text") or "",
+            "topic": o.get("topic") or "未分類",
+            "source_file": h.get("source_file") or o.get("source_file") or "",
+            "date": o.get("date"),
+            "type": o.get("type"),
+            "score": float(h.get("score", 0.0)),
+            "chunk_id": h.get("chunk_id"),
+            "source_index": "s3vectors",
+        })
+
+        # pair_idでQ/A抽出
+        pid = h.get("pair_id")
         if pid is None:
             continue
+        base = _base_from_chunk_id(h.get("chunk_id") or "")
+        jsonl_key = f"{OUTPUT_PREFIX}{base}.jsonl"
 
-        # jsonl_base を直接使ってキーを作る
-        jsonl_key = f"{OUTPUT_PREFIX}{jsonl_base}.jsonl"
-
-        recs = []
         try:
-            s3_client.head_object(Bucket=DATA_BUCKET_NAME, Key=jsonl_key)
-            recs = _s3select_pair_records(s3_client, jsonl_key, int(pid))
+            recs = _fetch_pair_records_resilient(s3_client, jsonl_key, int(pid))
         except Exception as e:
-            st.warning(f"S3 Select失敗: {jsonl_key} pair_id={pid} :: {e}")
-
+            recs = []
+            st.warning(f"S3 Select/フォールバック失敗: {jsonl_key} pair_id={pid} :: {e}")
 
         if not recs:
             continue
 
         Q = [r for r in recs if r.get("qa_role") == "Q"]
         A = [r for r in recs if r.get("qa_role") == "A"]
-        src_name = recs[0].get("source_id") or recs[0].get("source_file") or (src or (jb + ".txt"))
-        for r in Q + A:
+        src_name = recs[0].get("source_file") or (h.get("source_file") or (base + ".txt"))
+        for r in recs:
             r.setdefault("source_file", src_name)
-        qa_pairs.append({"pair_id": int(pid), "source_file": src_name, "jsonl_base": jb, "Q": Q, "A": A})
+        qa_pairs.append({"pair_id": int(pid), "source_file": src_name, "jsonl_base": base, "Q": Q, "A": A})
 
-    # --- ペアごとの要約 → 全体要約 ---
+    # ── 要約（Q/Aが取れたものだけ）
+    summary = "⚠️ 情報が見つかりませんでした。"
     try:
-        gikai_pair_prompt = load_prompt(
-            "gikai_pair_summary.txt",
-            "あなたは議会の議事録編集者です。質問と答弁を読み、論点・合意・宿題を箇条書きで短くまとめてください。"
-        )
-        summary_overall_prompt = load_prompt(
-            "gikai_summary_overall.txt",
-            "複数のQ/A要約を統合し、重複をまとめて全体像を100〜200字でまとめてください。"
-        )
+        gikai_pair_prompt = load_prompt("mirai_pair_summary.txt") if hasattr(st, "secrets") else "あなたは編集者です。質問と答弁を短く要約。"
+        summary_overall_prompt = load_prompt("mirai_summary.txt")
 
         summary_per_pair = []
         for pair in qa_pairs:
-            q_texts = [q.get("text", "") for q in pair["Q"]]
-            a_texts = [a.get("text", "") for a in pair["A"]]
-            qa_ctx = "\n\n".join(["〖質問〗"+q for q in q_texts if q] + ["〖答弁〗"+a for a in a_texts if a])
+            q_texts = [q.get("text","") for q in pair["Q"]]
+            a_texts = [a.get("text","") for a in pair["A"]]
+            qa_ctx = "\n\n".join(["【質問】"+q for q in q_texts] + ["【答弁】"+a for a in a_texts if a])
             if not qa_ctx.strip():
-                pair["summary"] = "⚠️ 該当Q/A本文なし"
                 continue
-            resp = client_oai.chat.completions.create(
+            resp = client.chat.completions.create(
                 model=GPT_MODEL,
                 messages=[{"role": "system", "content": gikai_pair_prompt},
                           {"role": "user", "content": qa_ctx}],
@@ -401,20 +394,20 @@ def search_s3vector_and_respond(query):
 
         if summary_per_pair:
             ctx = "\n\n".join([f"{i+1}件目：{s}" for i, s in enumerate(summary_per_pair)])
-            resp = client_oai.chat.completions.create(
+            resp = client.chat.completions.create(
                 model=GPT_MODEL,
                 messages=[{"role": "system", "content": summary_overall_prompt},
                           {"role": "user", "content": ctx}],
                 temperature=GPT_TEMPERATURE
             )
-            summary_overall = (resp.choices[0].message.content or "").strip()
+            summary = (resp.choices[0].message.content or "").strip()
         else:
-            summary_overall = "⚠️ 情報が見つかりませんでした。"
+            summary = "⚠️ 情報が見つかりませんでした。"
 
     except Exception as e:
-        summary_overall = f"⚠️ 要約処理でエラー：{e}"
+        summary = f"⚠️ 要約処理でエラー：{e}"
 
-    return {"matches": top_matches, "summary": summary_overall, "qa_pairs": qa_pairs}
+    return {"matches": top_matches, "summary": summary, "qa_pairs": qa_pairs}
 
 # ========================= UI =========================
 st.title("📜 きいてギカイやまぐち（β）")
