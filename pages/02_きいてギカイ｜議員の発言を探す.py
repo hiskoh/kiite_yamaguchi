@@ -331,27 +331,39 @@ def search_s3vector_and_respond(query):
                 seen.add(key_tuple)
                 pair_keys.append(key_tuple)
 
+    # search_s3vector_and_respond 内：S3 Select実行部分を置換
     qa_pairs = []
-    for jb, pid in pair_keys:
-        jsonl_key = f"{OUTPUT_PREFIX}{jb}.jsonl"
-        try:
-            recs = _s3select_pair_records(s3_client, jsonl_key, pid)
-        except Exception as e:
-            recs = []
-            st.warning(f"S3 Select失敗: s3://{DATA_BUCKET_NAME}/{jsonl_key} pair_id={pid} :: {e}")
+    for m in top_matches:
+        jb  = m.get("jsonl_base")
+        pid = m.get("pair_id")
+        src = m.get("source_file")
+        if pid is None:
+            continue
 
+        jsonl_keys = _guess_jsonl_keys(jb, src, OUTPUT_PREFIX)
+
+        recs = []
+        last_err = None
+        for jsonl_key in jsonl_keys:
+            try:
+                recs = _s3select_pair_records(s3_client, jsonl_key, int(pid))
+                if recs:
+                    break
+            except Exception as e:
+                last_err = e
+                continue
         if not recs:
+            if last_err:
+                st.warning(f"S3 Select失敗: {jsonl_keys} pair_id={pid} :: {last_err}")
             continue
 
         Q = [r for r in recs if r.get("qa_role") == "Q"]
         A = [r for r in recs if r.get("qa_role") == "A"]
-
-        # 表示用に source_file を補完
-        src_name = recs[0].get("source_file") if recs else f"{jb}.txt"
+        src_name = recs[0].get("source_file") if recs else (src or (jb + ".txt"))
         for r in Q + A:
             r.setdefault("source_file", src_name)
+        qa_pairs.append({"pair_id": int(pid), "source_file": src_name, "jsonl_base": jb, "Q": Q, "A": A})
 
-        qa_pairs.append({"pair_id": pid, "source_file": src_name, "jsonl_base": jb, "Q": Q, "A": A})
 
     # ペアごとの要約 → 全体要約
     try:
