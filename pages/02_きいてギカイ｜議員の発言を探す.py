@@ -28,7 +28,6 @@ SIM_THRESHOLD    = 0.00  # まずは0.0で挙動確認→落ち着いたら 0.05
 # 取得するチャンク数（≒類似度の高い議会答弁を取得する際、何件まで取得するかを制御）
 TOP_K = 10
 
-
 # AWS
 AWS_REGION       = "us-west-2"
 DATA_BUCKET_NAME = st.secrets["AWS-KEY"]["DATA_BUCKET_NAME"]
@@ -565,66 +564,61 @@ st.caption("""
 [💛 codocで支援する](https://codoc.jp/sites/p8cEFlTZQA/entries/MMZnODc1dw)
 """)
 
-# --- フッター
-st.divider()
-st.caption("""
-⚠️ 回答は生成AIによるものであり、正確性を保証するものではありません。  
-🙌 本プロジェクトは個人により運営されています。ご支援いただける方はぜひこちらから：  
-[💛 codocで支援する](https://codoc.jp/sites/p8cEFlTZQA/entries/MMZnODc1dw)
-""")
 
-# ==================== デバッグチェッカー ====================
-with st.expander("🧪 デバッグチェッカー（検索ヒット & JSONL照合）", expanded=False):
-    if st.session_state.last_matches:
-        st.write("▶ ベクター検索のヒット件数:", len(st.session_state.last_matches))
-        st.json([
-            {
-                "score": round(float(m.get("score", 0.0)), 3),
-                "distance": round(float(m.get("distance", 0.0)), 3),
-                "source_id": m.get("source_id"),
-                "chunk_id": m.get("chunk_id"),
-                "pair_id": m.get("pair_id"),
-            }
-            for m in st.session_state.last_matches[:5]
-        ])
+# ==================== 単語テスト：S3 Vectors に直問い合わせ ====================
+with st.expander("🧪 S3 Vectors 単語テスト（複数チャンク返るかチェック）", expanded=False):
+    test_kw = st.text_input("テストする単語（例：給食費）", value="給食費", key="sv_test_kw")
+    topk_for_test = st.number_input("topK", min_value=1, max_value=200, value=30, step=1, key="sv_test_topk")
+    if st.button("🔍 S3 Vectors にテスト実行", key="sv_test_btn"):
+        try:
+            # 1) クエリ埋め込み（インデックス作成時と同じモデルを使うこと！）
+            _emb = client_oai.embeddings.create(model=EMBED_MODEL, input=test_kw)
+            qvec = [float(x) for x in _emb.data[0].embedding]
 
-        # 先頭ヒットについて JSONLキー推定とS3存在確認
-        s3_client_dbg = _boto_s3()
-        h0 = st.session_state.last_matches[0]
-        jb0 = _base_from_chunk_id(h0.get("chunk_id") or "")
-        src0 = h0.get("source_id")
-        pid0 = h0.get("pair_id")
-        jsonl_keys0 = _guess_jsonl_key_from_chunk_or_source(jb0, src0)
+            # 2) S3 Vectors を直接クエリ
+            s3v = _boto_s3vectors()
+            res = s3v.query_vectors(
+                indexArn=S3_INDEX_ARN,
+                queryVector={"float32": qvec},
+                topK=int(topk_for_test),
+                returnMetadata=True,
+                returnDistance=True,
+            )
+            matches = res.get("vectors", []) or []
 
-        st.write("▶ 推定JSONLキー:", jsonl_keys0)
-        exist_logs = []
-        for key in jsonl_keys0:
-            try:
-                s3_client_dbg.head_object(Bucket=DATA_BUCKET_NAME, Key=key)
-                exist_logs.append((key, True))
-            except Exception:
-                exist_logs.append((key, False))
-        st.write("▶ S3存在確認:", exist_logs)
+            # 3) 整形（しきい値では弾かず、そのまま可視化）
+            rows = []
+            uniq_chunk_ids = set()
+            for m in matches:
+                md = m.get("metadata") or {}
+                chunk_id = md.get("chunk_id") or md.get("chank_id") or (m.get("key") or m.get("id"))
+                uniq_chunk_ids.add(chunk_id)
+                rows.append({
+                    "distance": round(float(m.get("distance", 0.0)), 6),
+                    "score(1-d)": round(1.0 - float(m.get("distance", 0.0)), 6),
+                    "key": m.get("key") or m.get("id"),
+                    "source_id": md.get("source_id") or md.get("source_file") or md.get("source"),
+                    "chunk_id": chunk_id,
+                    "pair_id": md.get("pair_id") or md.get("pairId"),
+                })
 
-        # ボタンでS3 Selectを実行
-        if st.button("この1件で S3 Select テスト実行"):
-            if pid0 is None:
-                st.error("pair_id が None のため実行不可")
+            # 4) 判定 & 表示
+            st.write({
+                "返却ベクトル数": len(matches),
+                "ユニークchunk_id数": len(uniq_chunk_ids),
+                "埋め込みモデル": EMBED_MODEL,
+            })
+
+            if len(uniq_chunk_ids) >= 2:
+                st.success("✅ 複数チャンクが返っています。")
+            elif len(matches) > 0:
+                st.warning("⚠️ 返却はあるが、chunk_id が単一です。投入データ数/メタを確認してください。")
             else:
-                try:
-                    recs = []
-                    for key in jsonl_keys0:
-                        try:
-                            recs = _s3select_pair_records(s3_client_dbg, key, int(pid0))
-                            if recs:
-                                st.success(f"S3 Select成功: {len(recs)}件")
-                                st.json(recs[:3])  # 先頭3件だけ確認
-                                break
-                        except Exception as e:
-                            continue
-                    if not recs:
-                        st.error("S3 Selectで該当レコードが見つかりませんでした。")
-                except Exception as e:
-                    st.error(f"S3 Selectエラー: {e}")
-    else:
-        st.info("検索ヒットがまだありません。質問を投げた後に確認できます。")
+                st.error("❌ ヒット0件です。インデックス投入/モデル一致/ARN/リージョンをご確認ください。")
+
+            st.caption("上位の結果（scoreは 1 - distance）")
+            st.dataframe(rows[:50], use_container_width=True)
+
+        except Exception as e:
+            st.error(f"テスト実行エラー: {e}")
+            st.info("よくある原因: EMBED_MODEL不一致 / S3_INDEX_ARNやリージョンの不整合 / インデックス未投入")
