@@ -320,10 +320,10 @@ def search_s3vector_and_respond(query: str):
     try:
         hits = _query_s3vectors(query, TOP_N_RETURN, SIM_THRESHOLD)
     except Exception as e:
-        return {"matches": [], "summary": f"🔍 検索エラーが発生しました: {e}"}
+        return {"matches": [], "summary": f"🔍 検索エラーが発生しました: {e}", "qa_pairs": []}
 
     if not hits:
-        return {"matches": [], "summary": "🔍 類似度の高い発言は見つかりませんでした。"}
+        return {"matches": [], "summary": "🔍 類似度の高い発言は見つかりませんでした。", "qa_pairs": []}
 
     s3_client = _boto_s3()
     top_hits = hits[:TOP_N_RETURN]
