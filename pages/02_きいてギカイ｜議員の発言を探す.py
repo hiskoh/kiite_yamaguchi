@@ -659,8 +659,7 @@ with st.expander("🧪 S3 Select テスト（先頭ヒットで試す）", expan
         jb0 = _base_from_chunk_id(h0.get("chunk_id") or "")
         src0 = h0.get("source_id")
         pid0 = h0.get("pair_id")
-        jsonl_keys0 = _guess_jsonl_key_from_chunk_or_source(jb0, src0)
-
+        jsonl_keys0 = [f"{OUTPUT_PREFIX}{jsonl_base}.jsonl"]
         st.write("▶ 先頭ヒット:", {"pair_id": pid0, "chunk_id": h0.get("chunk_id"), "source_id": src0})
         st.write("▶ 推定JSONLキー:", jsonl_keys0)
 
